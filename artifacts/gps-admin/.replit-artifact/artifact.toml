@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "GPS SISTEMA C.A. - Panel Administrativo"
+version = "1.0.0"
+id = "artifacts/gps-admin"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25958
+
+[services.development]
+run = "pnpm --filter @workspace/gps-admin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gps-admin", "run", "build" ]
+publicDir = "artifacts/gps-admin/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25958"
+BASE_PATH = "/"

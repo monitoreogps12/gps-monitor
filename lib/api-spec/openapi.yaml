@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: GPS SISTEMA C.A. - Panel Administrativo API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: gps
+    description: GPS fleet tracking operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,79 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /gps/devices:
+    get:
+      operationId: listDevices
+      tags: [gps]
+      summary: List all GPS devices
+      description: Returns all tracked vehicles with their status, plates, IMEI, SIM number and last connection
+      responses:
+        "200":
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Device"
+        "503":
+          description: Cannot connect to tracking platform
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /gps/devices/live:
+    get:
+      operationId: getLivePositions
+      tags: [gps]
+      summary: Get live positions for map
+      description: Returns current live GPS positions for all active devices (updated every 2s)
+      responses:
+        "200":
+          description: Live device positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LivePosition"
+        "503":
+          description: Cannot connect to tracking platform
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /gps/stats:
+    get:
+      operationId: getFleetStats
+      tags: [gps]
+      summary: Get fleet statistics
+      description: Returns count of devices per status (moving, idle, disconnected, ack, engine_idle)
+      responses:
+        "200":
+          description: Fleet statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FleetStats"
+
+  /gps/connection:
+    get:
+      operationId: getConnectionStatus
+      tags: [gps]
+      summary: Get tracking platform connection status
+      description: Returns whether the backend is authenticated with rastreoplus247.com
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionStatus"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +109,118 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Device:
+      type: object
+      required:
+        - id
+        - name
+        - plate
+        - imei
+        - simNumber
+        - status
+        - lastConnection
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        plate:
+          type: string
+        imei:
+          type: string
+        simNumber:
+          type: string
+        status:
+          type: string
+          enum: [moving, disconnected_blue, disconnected_red, ack, engine_idle]
+        speed:
+          type: ["number", "null"]
+        lastConnection:
+          type: string
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        address:
+          type: ["string", "null"]
+        driver:
+          type: ["string", "null"]
+
+    LivePosition:
+      type: object
+      required:
+        - id
+        - name
+        - plate
+        - status
+        - lat
+        - lng
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        plate:
+          type: string
+        status:
+          type: string
+          enum: [moving, disconnected_blue, disconnected_red, ack, engine_idle]
+        lat:
+          type: number
+        lng:
+          type: number
+        speed:
+          type: ["number", "null"]
+        heading:
+          type: ["number", "null"]
+        lastConnection:
+          type: string
+        address:
+          type: ["string", "null"]
+
+    FleetStats:
+      type: object
+      required:
+        - total
+        - moving
+        - disconnected
+        - ack
+        - engineIdle
+        - lastUpdated
+      properties:
+        total:
+          type: integer
+        moving:
+          type: integer
+        disconnected:
+          type: integer
+        ack:
+          type: integer
+        engineIdle:
+          type: integer
+        lastUpdated:
+          type: string
+
+    ConnectionStatus:
+      type: object
+      required:
+        - connected
+        - platform
+        - lastSync
+      properties:
+        connected:
+          type: boolean
+        platform:
+          type: string
+        lastSync:
+          type: ["string", "null"]
+        error:
+          type: ["string", "null"]

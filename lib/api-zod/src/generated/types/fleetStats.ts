@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface FleetStats {
+  total: number;
+  moving: number;
+  disconnected: number;
+  ack: number;
+  engineIdle: number;
+  lastUpdated: string;
 }
