@@ -6,7 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './addVehicleInput';
+export * from './client';
+export * from './clientVehicle';
+export * from './clientWithVehicles';
 export * from './connectionStatus';
+export * from './createClientInput';
 export * from './device';
 export * from './deviceStatus';
 export * from './errorResponse';
@@ -14,3 +19,4 @@ export * from './fleetStats';
 export * from './healthStatus';
 export * from './livePosition';
 export * from './livePositionStatus';
+export * from './updateClientInput';

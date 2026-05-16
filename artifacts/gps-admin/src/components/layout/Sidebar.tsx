@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Map as MapIcon, Wrench } from "lucide-react";
+import { LayoutDashboard, Map as MapIcon, Wrench, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
@@ -8,6 +8,7 @@ export function Sidebar() {
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/soporte", label: "Soporte Técnico", icon: Wrench },
+    { href: "/clientes", label: "Clientes", icon: Users },
     { href: "/mapa", label: "Mapa en Vivo", icon: MapIcon },
   ];
 

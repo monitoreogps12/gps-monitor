@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Dashboard } from "@/pages/Dashboard";
 import { Soporte } from "@/pages/Soporte";
 import { Mapa } from "@/pages/Mapa";
+import { Clientes } from "@/pages/Clientes";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,9 @@ function Router() {
       </Route>
       <Route path="/mapa">
         <Mapa />
+      </Route>
+      <Route path="/clientes">
+        <AppLayout><Clientes /></AppLayout>
       </Route>
       <Route>
         <AppLayout><NotFound /></AppLayout>

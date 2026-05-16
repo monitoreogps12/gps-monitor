@@ -89,3 +89,54 @@ export interface ConnectionStatus {
   error?: string | null;
 }
 
+export interface Client {
+  id: number;
+  name: string;
+  phone: string;
+  /** @nullable */
+  telegramId?: string | null;
+  /** @nullable */
+  telegramUsername?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive: boolean;
+  registeredAt: string;
+  updatedAt?: string;
+}
+
+export interface ClientVehicle {
+  id: number;
+  clientId: number;
+  deviceId: string;
+  deviceName: string;
+  plate: string;
+  addedAt?: string;
+}
+
+export type ClientWithVehicles = Client & {
+  vehicles?: ClientVehicle[];
+};
+
+export interface CreateClientInput {
+  name: string;
+  phone: string;
+  telegramId?: string;
+  telegramUsername?: string;
+  notes?: string;
+}
+
+export interface UpdateClientInput {
+  name?: string;
+  phone?: string;
+  telegramId?: string;
+  telegramUsername?: string;
+  notes?: string;
+  isActive?: boolean;
+}
+
+export interface AddVehicleInput {
+  deviceId: string;
+  deviceName?: string;
+  plate?: string;
+}
+

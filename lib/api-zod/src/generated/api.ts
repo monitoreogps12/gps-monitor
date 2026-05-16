@@ -83,3 +83,115 @@ export const GetConnectionStatusResponse = zod.object({
 })
 
 
+/**
+ * @summary List all clients
+ */
+export const ListClientsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "telegramId": zod.string().nullish(),
+  "telegramUsername": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "registeredAt": zod.string(),
+  "updatedAt": zod.string().optional()
+}).and(zod.object({
+  "vehicles": zod.array(zod.object({
+  "id": zod.number(),
+  "clientId": zod.number(),
+  "deviceId": zod.string(),
+  "deviceName": zod.string(),
+  "plate": zod.string(),
+  "addedAt": zod.string().optional()
+})).optional()
+}))
+export const ListClientsResponse = zod.array(ListClientsResponseItem)
+
+
+/**
+ * @summary Create a new client
+ */
+export const CreateClientBody = zod.object({
+  "name": zod.string(),
+  "phone": zod.string(),
+  "telegramId": zod.string().optional(),
+  "telegramUsername": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+
+export const GetClientParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetClientResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "telegramId": zod.string().nullish(),
+  "telegramUsername": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "registeredAt": zod.string(),
+  "updatedAt": zod.string().optional()
+}).and(zod.object({
+  "vehicles": zod.array(zod.object({
+  "id": zod.number(),
+  "clientId": zod.number(),
+  "deviceId": zod.string(),
+  "deviceName": zod.string(),
+  "plate": zod.string(),
+  "addedAt": zod.string().optional()
+})).optional()
+}))
+
+
+export const UpdateClientParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateClientBody = zod.object({
+  "name": zod.string().optional(),
+  "phone": zod.string().optional(),
+  "telegramId": zod.string().optional(),
+  "telegramUsername": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateClientResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "telegramId": zod.string().nullish(),
+  "telegramUsername": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "registeredAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+export const DeleteClientParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const AddClientVehicleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddClientVehicleBody = zod.object({
+  "deviceId": zod.string(),
+  "deviceName": zod.string().optional(),
+  "plate": zod.string().optional()
+})
+
+
+export const RemoveClientVehicleParams = zod.object({
+  "id": zod.coerce.number(),
+  "deviceId": zod.coerce.string()
+})
+
+

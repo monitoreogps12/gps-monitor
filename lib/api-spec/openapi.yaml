@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: gps
     description: GPS fleet tracking operations
+  - name: clients
+    description: Client management
 paths:
   /healthz:
     get:
@@ -98,6 +100,139 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConnectionStatus"
+
+  /clients:
+    get:
+      operationId: listClients
+      tags: [clients]
+      summary: List all clients
+      responses:
+        "200":
+          description: List of clients with their vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClientWithVehicles"
+    post:
+      operationId: createClient
+      tags: [clients]
+      summary: Create a new client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClientInput"
+      responses:
+        "201":
+          description: Created client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Client details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientWithVehicles"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateClient
+      tags: [clients]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClientInput"
+      responses:
+        "200":
+          description: Updated client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+    delete:
+      operationId: deleteClient
+      tags: [clients]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /clients/{id}/vehicles:
+    post:
+      operationId: addClientVehicle
+      tags: [clients]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddVehicleInput"
+      responses:
+        "201":
+          description: Vehicle added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientVehicle"
+
+  /clients/{id}/vehicles/{deviceId}:
+    delete:
+      operationId: removeClientVehicle
+      tags: [clients]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Vehicle removed
 
 components:
   schemas:
@@ -224,3 +359,108 @@ components:
           type: ["string", "null"]
         error:
           type: ["string", "null"]
+
+    Client:
+      type: object
+      required:
+        - id
+        - name
+        - phone
+        - isActive
+        - registeredAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        telegramId:
+          type: ["string", "null"]
+        telegramUsername:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        registeredAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ClientVehicle:
+      type: object
+      required:
+        - id
+        - clientId
+        - deviceId
+        - deviceName
+        - plate
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        deviceId:
+          type: string
+        deviceName:
+          type: string
+        plate:
+          type: string
+        addedAt:
+          type: string
+
+    ClientWithVehicles:
+      allOf:
+        - $ref: "#/components/schemas/Client"
+        - type: object
+          properties:
+            vehicles:
+              type: array
+              items:
+                $ref: "#/components/schemas/ClientVehicle"
+
+    CreateClientInput:
+      type: object
+      required:
+        - name
+        - phone
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        telegramId:
+          type: string
+        telegramUsername:
+          type: string
+        notes:
+          type: string
+
+    UpdateClientInput:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        telegramId:
+          type: string
+        telegramUsername:
+          type: string
+        notes:
+          type: string
+        isActive:
+          type: boolean
+
+    AddVehicleInput:
+      type: object
+      required:
+        - deviceId
+      properties:
+        deviceId:
+          type: string
+        deviceName:
+          type: string
+        plate:
+          type: string

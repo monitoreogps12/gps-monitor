@@ -30,3 +30,9 @@ externalPort = 80
 [[ports]]
 localPort = 25958
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+TELEGRAM_CLIENT_BOT_TOKEN = "8642789067:AAG2xvaZAuS88a4kW63XMrIfKnhEl-zoGJM"
+TELEGRAM_SUPPORT_BOT_TOKEN = "8885557328:AAEc4PuOpEpaQc6RVsikn1yfwxL3RsCtXEE"
