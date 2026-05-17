@@ -320,6 +320,14 @@ components:
           type: string
         address:
           type: ["string", "null"]
+        imei:
+          type: ["string", "null"]
+        simNumber:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        driver:
+          type: ["string", "null"]
 
     FleetStats:
       type: object

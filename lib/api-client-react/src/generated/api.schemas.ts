@@ -69,6 +69,14 @@ export interface LivePosition {
   lastConnection?: string;
   /** @nullable */
   address?: string | null;
+  /** @nullable */
+  imei?: string | null;
+  /** @nullable */
+  simNumber?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  driver?: string | null;
 }
 
 export interface FleetStats {

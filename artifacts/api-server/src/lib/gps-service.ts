@@ -19,6 +19,7 @@ export interface GpsDevice {
   plate: string;
   imei: string;
   simNumber: string;
+  model: string | null;
   status: DeviceStatus;
   speed: number | null;
   lastConnection: string;
@@ -39,6 +40,10 @@ export interface LivePosition {
   heading: number | null;
   lastConnection: string;
   address: string | null;
+  imei: string | null;
+  simNumber: string | null;
+  model: string | null;
+  driver: string | null;
 }
 
 let sessionCookies: string[] = [];
@@ -216,6 +221,7 @@ export async function fetchDevices(): Promise<GpsDevice[]> {
         plate: cleanPlate(row.plate_number || ""),
         imei: row.imei || "",
         simNumber: row.sim_number || "",
+        model: row.device_model || null,
         status: parseStatus(row.status || ""),
         speed: null,
         lastConnection: row.installation_date || "",
@@ -289,6 +295,8 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
 
         const id = String(d.id || "");
         const engineStatus = Boolean(d.engine_status);
+        // Cross-reference with device cache for IMEI / SIM / model
+        const dev = cachedDevices.find((dev) => dev.id === id);
         updatesById.set(id, {
           id,
           name: String(d.name || ""),
@@ -300,6 +308,10 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
           heading: d.course != null ? parseFloat(String(d.course)) : null,
           lastConnection: String(d.time || ""),
           address: d.address != null ? String(d.address) : null,
+          imei: dev?.imei ?? null,
+          simNumber: dev?.simNumber ?? null,
+          model: dev?.model ?? null,
+          driver: dev?.driver ?? null,
         });
       }
 

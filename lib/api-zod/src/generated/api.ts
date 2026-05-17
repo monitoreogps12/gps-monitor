@@ -52,7 +52,11 @@ export const GetLivePositionsResponseItem = zod.object({
   "speed": zod.number().nullish(),
   "heading": zod.number().nullish(),
   "lastConnection": zod.string().optional(),
-  "address": zod.string().nullish()
+  "address": zod.string().nullish(),
+  "imei": zod.string().nullish(),
+  "simNumber": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "driver": zod.string().nullish()
 })
 export const GetLivePositionsResponse = zod.array(GetLivePositionsResponseItem)
 
