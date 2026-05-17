@@ -33,7 +33,7 @@ export function Mapa() {
 
   const { data: positions } = useGetLivePositions({
     query: {
-      refetchInterval: 3000,
+      refetchInterval: 2000,
       queryKey: getGetLivePositionsQueryKey(),
     },
   });

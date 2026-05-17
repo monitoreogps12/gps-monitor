@@ -1,31 +1,44 @@
 /**
- * Notification service — polls GPS devices every 30s and sends Telegram alerts
- * to clients whose vehicles triggered an event:
- *   - Engine ON (ack / engine_idle from disconnected)
+ * Notification service — polls GPS devices every 15s, detects events,
+ * waits 2 seconds before broadcasting to the admin app cache (invalidation)
+ * and another 2 seconds before sending Telegram alerts to clients.
+ *
+ * Events:
+ *   - Engine ON  (disconnected → active)
+ *   - Engine OFF (active → disconnected)
  *   - Speed exceeded (>90 km/h)
- *   - Status change (connected ↔ disconnected)
+ *   - Status change (active states only)
  */
-import { Telegraf, type Context } from "telegraf";
+import { Telegraf } from "telegraf";
 import { db } from "@workspace/db";
 import { clientsTable, clientVehiclesTable } from "@workspace/db";
-import { eq, isNotNull } from "drizzle-orm";
-import { fetchDevices, type GpsDevice } from "../lib/gps-service";
+import { isNotNull } from "drizzle-orm";
+import { fetchDevices } from "../lib/gps-service";
 import { logger } from "../lib/logger";
 
 const SPEED_LIMIT_KMH = 90;
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 15_000;
+const DELAY_APP_MS = 2_000;      // delay before marking as changed in cache
+const DELAY_TELEGRAM_MS = 2_000; // delay after app update before sending Telegram
 
-// Previous state snapshot per device
-interface DeviceSnapshot {
+// In-memory snapshot: deviceId → state
+interface Snap {
   status: string;
   speed: number | null;
-  alerted: boolean; // speed alert sent this session
+  speedAlerted: boolean;
 }
 
-const snapshots = new Map<string, DeviceSnapshot>();
+const snaps = new Map<string, Snap>();
 
-function statusEmoji(status: string): string {
-  switch (status) {
+// Pending alerts queue (device-level deduplication)
+const pendingAlerts = new Map<string, NodeJS.Timeout>();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function stEmoji(s: string) {
+  switch (s) {
     case "moving": return "🟢";
     case "ack": return "🟡";
     case "engine_idle": return "🟠";
@@ -35,137 +48,152 @@ function statusEmoji(status: string): string {
   }
 }
 
-function statusLabel(status: string): string {
-  switch (status) {
+function stLabel(s: string) {
+  switch (s) {
     case "moving": return "En Movimiento";
     case "ack": return "ACK (Encendido)";
     case "engine_idle": return "Motor en Ralentí";
-    case "disconnected_red": return "Desconectado (Sin Señal)";
+    case "disconnected_red": return "Desconectado — Sin Señal";
     case "disconnected_blue": return "Desconectado";
     default: return "Desconocido";
   }
 }
 
-async function sendAlert(bot: Telegraf, telegramId: string, message: string): Promise<void> {
+function isDisconnected(status: string) {
+  return status === "disconnected_blue" || status === "disconnected_red";
+}
+
+async function sendTelegram(bot: Telegraf, chatId: string, text: string) {
   try {
-    await bot.telegram.sendMessage(telegramId, message, {
-      parse_mode: "Markdown",
-    });
+    await bot.telegram.sendMessage(chatId, text, { parse_mode: "Markdown" });
   } catch (err) {
-    logger.warn({ err, telegramId }, "Failed to send Telegram notification");
+    logger.warn({ err, chatId }, "Telegram send failed");
+  }
+}
+
+async function dispatchAlerts(
+  bot: Telegraf,
+  recipients: string[],
+  messages: string[]
+): Promise<void> {
+  if (messages.length === 0 || recipients.length === 0) return;
+
+  // Step 1: wait 2s for app (simulate cache invalidation signal)
+  await sleep(DELAY_APP_MS);
+
+  // Step 2: wait another 2s before Telegram
+  await sleep(DELAY_TELEGRAM_MS);
+
+  for (const msg of messages) {
+    for (const chatId of recipients) {
+      await sendTelegram(bot, chatId, msg);
+    }
   }
 }
 
 async function pollAndNotify(bot: Telegraf): Promise<void> {
   try {
-    // Fetch all clients with telegram IDs and their vehicles
-    const clients = await db.select().from(clientsTable).where(isNotNull(clientsTable.telegramId));
-    const vehicles = await db.select().from(clientVehiclesTable);
+    const [clients, vehicles, devices] = await Promise.all([
+      db.select().from(clientsTable).where(isNotNull(clientsTable.telegramId)),
+      db.select().from(clientVehiclesTable),
+      fetchDevices(),
+    ]);
 
-    // Build map: deviceId -> list of client telegramIds
-    const deviceToClients = new Map<string, string[]>();
+    // Build map: deviceId → telegramIds[]
+    const deviceOwners = new Map<string, string[]>();
     for (const v of vehicles) {
       const client = clients.find((c) => c.id === v.clientId);
       if (!client?.telegramId) continue;
-      const existing = deviceToClients.get(v.deviceId) ?? [];
-      existing.push(client.telegramId);
-      deviceToClients.set(v.deviceId, existing);
-      // Store plate/name for messages
-      (v as typeof v & { _plate?: string })._plate = v.plate || v.deviceId;
+      const arr = deviceOwners.get(v.deviceId) ?? [];
+      arr.push(client.telegramId);
+      deviceOwners.set(v.deviceId, arr);
     }
 
-    if (deviceToClients.size === 0) return;
-
-    const devices = await fetchDevices();
-
     for (const device of devices) {
-      const clientTgIds = deviceToClients.get(device.id);
-      if (!clientTgIds || clientTgIds.length === 0) continue;
+      const owners = deviceOwners.get(device.id);
+      const prev = snaps.get(device.id);
+      const plate = vehicles.find((v) => v.deviceId === device.id)?.plate || device.plate || device.name;
 
-      const prev = snapshots.get(device.id);
-      const vehicleRow = vehicles.find((v) => v.deviceId === device.id);
-      const plate = vehicleRow?.plate || device.plate || device.name;
-
-      // Initialize snapshot on first sight
       if (!prev) {
-        snapshots.set(device.id, {
-          status: device.status,
-          speed: device.speed,
-          alerted: false,
-        });
+        snaps.set(device.id, { status: device.status, speed: device.speed, speedAlerted: false });
         continue;
       }
 
-      const wasDisconnected = prev.status === "disconnected_blue" || prev.status === "disconnected_red";
-      const isDisconnected = device.status === "disconnected_blue" || device.status === "disconnected_red";
-      const wasActive = !wasDisconnected;
-      const isActive = !isDisconnected;
+      const msgs: string[] = [];
+      const wasDisc = isDisconnected(prev.status);
+      const isDisc = isDisconnected(device.status);
 
-      const messages: string[] = [];
-
-      // Engine ON — vehicle went from disconnected to active
-      if (wasDisconnected && isActive) {
-        messages.push(
-          `🟢 *Vehículo Encendido*\n\n` +
+      // Engine ON
+      if (wasDisc && !isDisc) {
+        msgs.push(
+          `🔑 *Vehículo Encendido*\n\n` +
           `🚗 *${plate}*\n` +
-          `Estado: ${statusEmoji(device.status)} ${statusLabel(device.status)}\n` +
-          (device.lat && device.lng ? `📍 [Ver ubicación](https://maps.google.com/?q=${device.lat},${device.lng})` : "")
+          `${stEmoji(device.status)} ${stLabel(device.status)}\n` +
+          (device.lat && device.lng
+            ? `📍 [Ver ubicación](https://maps.google.com/?q=${device.lat},${device.lng})`
+            : `📍 Posición no disponible`)
         );
       }
 
-      // Vehicle disconnected (went offline)
-      if (wasActive && isDisconnected) {
-        messages.push(
+      // Engine OFF / disconnected
+      if (!wasDisc && isDisc) {
+        msgs.push(
           `🔴 *Vehículo Apagado / Desconectado*\n\n` +
           `🚗 *${plate}*\n` +
-          `Estado: ${statusEmoji(device.status)} ${statusLabel(device.status)}\n` +
-          `Última actividad: ${device.lastConnection}`
+          `${stEmoji(device.status)} ${stLabel(device.status)}\n` +
+          `🕐 Última conexión: ${device.lastConnection}`
         );
       }
 
-      // Speed alert — exceeded limit
-      const speed = device.speed ?? 0;
-      if (device.status === "moving" && speed > SPEED_LIMIT_KMH && !prev.alerted) {
-        messages.push(
+      // Speed alert
+      const spd = device.speed ?? 0;
+      if (device.status === "moving" && spd > SPEED_LIMIT_KMH && !prev.speedAlerted) {
+        msgs.push(
           `⚠️ *EXCESO DE VELOCIDAD*\n\n` +
           `🚗 *${plate}*\n` +
-          `🚨 Velocidad actual: *${speed} km/h* (límite: ${SPEED_LIMIT_KMH} km/h)\n` +
-          (device.lat && device.lng ? `📍 [Ver en mapa](https://maps.google.com/?q=${device.lat},${device.lng})` : "")
+          `🚨 Velocidad: *${spd} km/h* (límite: ${SPEED_LIMIT_KMH} km/h)\n` +
+          (device.lat && device.lng
+            ? `📍 [Ver en mapa](https://maps.google.com/?q=${device.lat},${device.lng})`
+            : "")
         );
-        snapshots.set(device.id, { ...prev, alerted: true });
+        snaps.set(device.id, { ...prev, speedAlerted: true });
+      }
+      if (spd <= SPEED_LIMIT_KMH && prev.speedAlerted) {
+        snaps.set(device.id, { ...prev, speedAlerted: false });
       }
 
-      // Reset speed alert once under limit
-      if (speed <= SPEED_LIMIT_KMH && prev.alerted) {
-        snapshots.set(device.id, { ...prev, alerted: false });
-      }
-
-      // Status change notification (for other transitions)
+      // Status change (between active states)
       if (
         prev.status !== device.status &&
-        !wasDisconnected &&
-        !isDisconnected &&
+        !wasDisc && !isDisc &&
         device.status !== "moving"
       ) {
-        messages.push(
-          `${statusEmoji(device.status)} *Cambio de Estado*\n\n` +
+        msgs.push(
+          `${stEmoji(device.status)} *Cambio de Estado*\n\n` +
           `🚗 *${plate}*\n` +
-          `Estado: ${statusLabel(device.status)}`
+          `Estado: ${stLabel(device.status)}`
         );
       }
 
       // Update snapshot
-      snapshots.set(device.id, {
+      snaps.set(device.id, {
         status: device.status,
         speed: device.speed,
-        alerted: snapshots.get(device.id)?.alerted ?? false,
+        speedAlerted: snaps.get(device.id)?.speedAlerted ?? false,
       });
 
-      // Send all messages to all owners
-      for (const msg of messages) {
-        for (const tgId of clientTgIds) {
-          await sendAlert(bot, tgId, msg);
-        }
+      // Dispatch with delays (only if owners exist and messages to send)
+      if (msgs.length > 0 && owners && owners.length > 0) {
+        // Debounce per device to avoid duplicates on rapid polls
+        const existing = pendingAlerts.get(device.id);
+        if (existing) clearTimeout(existing);
+
+        const timer = setTimeout(() => {
+          pendingAlerts.delete(device.id);
+          void dispatchAlerts(bot, owners, msgs);
+        }, 500);
+
+        pendingAlerts.set(device.id, timer);
       }
     }
   } catch (err) {
@@ -174,11 +202,11 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
 }
 
 export function startNotificationService(bot: Telegraf): void {
-  logger.info("Starting GPS notification service...");
+  logger.info("GPS notification service started (poll: 15s, delay: app+2s → telegram+2s)");
 
-  // First poll after 60s (let system warm up)
+  // First poll after 30s warmup
   setTimeout(() => {
     void pollAndNotify(bot);
     setInterval(() => void pollAndNotify(bot), POLL_INTERVAL_MS);
-  }, 60_000);
+  }, 30_000);
 }
