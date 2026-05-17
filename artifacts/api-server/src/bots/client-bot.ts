@@ -1,9 +1,10 @@
 import { Telegraf, Markup, type Context } from "telegraf";
 import { db } from "@workspace/db";
 import { clientsTable, clientVehiclesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { fetchDevices } from "../lib/gps-service";
 import { logger } from "../lib/logger";
+import { startNotificationService } from "./notifications";
 
 const TOKEN = process.env["TELEGRAM_CLIENT_BOT_TOKEN"] ?? "";
 
@@ -44,7 +45,12 @@ export function startClientBot(): void {
 
     if (client) {
       await ctx.reply(
-        `✅ Bienvenido de nuevo, *${client.name}*!\n\nUsa el menú para gestionar tus vehículos.`,
+        `✅ Bienvenido de nuevo, *${client.name}*!\n\n` +
+        `📡 Recibirás notificaciones automáticas cuando:\n` +
+        `• Tu vehículo se encienda o apague\n` +
+        `• Exceda los 90 km/h\n` +
+        `• Cambie de estado\n\n` +
+        `Usa el menú para monitorear tu flota.`,
         { parse_mode: "Markdown", ...MAIN_MENU }
       );
       return;
@@ -81,7 +87,9 @@ export function startClientBot(): void {
         .set({ telegramId: chatId, telegramUsername: ctx.from?.username ?? null, updatedAt: new Date() })
         .where(eq(clientsTable.id, byPhone[0].id));
       await ctx.reply(
-        `✅ ¡Cuenta vinculada exitosamente!\n\nBienvenido, *${byPhone[0].name}*.\nNúmero ${phone} vinculado.`,
+        `✅ ¡Cuenta vinculada!\n\nBienvenido, *${byPhone[0].name}*.\n\n` +
+        `📡 Activando notificaciones automáticas:\n` +
+        `• Encendido / Apagado\n• Exceso de velocidad (>90 km/h)\n• Cambios de estado`,
         { parse_mode: "Markdown", ...MAIN_MENU }
       );
       return;
@@ -90,7 +98,7 @@ export function startClientBot(): void {
     const name = `${ctx.from?.first_name ?? ""} ${ctx.from?.last_name ?? ""}`.trim() || "Cliente";
     await db.insert(clientsTable).values({ name, phone, telegramId: chatId, telegramUsername: ctx.from?.username ?? null });
     await ctx.reply(
-      `✅ ¡Registro exitoso!\n\nNúmero *${phone}* registrado.\nUn técnico asignará tus vehículos pronto.`,
+      `✅ ¡Registro exitoso!\n\nNúmero *${phone}* registrado.\n\nUn técnico de GPS SISTEMA C.A. asignará tus vehículos pronto y empezarás a recibir notificaciones.`,
       { parse_mode: "Markdown", ...MAIN_MENU }
     );
   });
@@ -103,7 +111,7 @@ export function startClientBot(): void {
 
     const vehicles = await db.select().from(clientVehiclesTable).where(eq(clientVehiclesTable.clientId, client.id));
     if (vehicles.length === 0) {
-      await ctx.reply("ℹ️ No tienes vehículos asignados todavía."); return;
+      await ctx.reply("ℹ️ No tienes vehículos asignados todavía.\n\nContacta a GPS SISTEMA C.A."); return;
     }
 
     let devices: Awaited<ReturnType<typeof fetchDevices>> = [];
@@ -112,11 +120,12 @@ export function startClientBot(): void {
     const lines: string[] = [`🚗 *Tus Vehículos* (${vehicles.length} en total)\n`];
     for (const v of vehicles) {
       const live = devices.find((d) => d.id === v.deviceId);
-      const status = live ? statusLabel(live.status) : "⚪ Sin datos";
-      lines.push(`*Placa:* ${v.plate || live?.plate || v.deviceId}`);
-      lines.push(`Estado: ${status}`);
-      if (live?.speed && live.speed > 0) lines.push(`Velocidad: ${live.speed} km/h`);
-      lines.push(`Última conexión: ${live?.lastConnection || "N/A"}`);
+      const st = live ? statusLabel(live.status) : "⚪ Sin datos";
+      const plate = v.plate || live?.plate || v.deviceId;
+      lines.push(`*${plate}*`);
+      lines.push(`Estado: ${st}`);
+      if (live?.speed && live.speed > 0) lines.push(`Velocidad: *${live.speed} km/h*`);
+      lines.push(`Última: ${live?.lastConnection || "N/A"}`);
       lines.push("");
     }
 
@@ -151,9 +160,10 @@ export function startClientBot(): void {
       `📊 *Resumen de tu Flota*\n\n` +
       `Total vehículos: *${vehicles.length}*\n` +
       `🟢 En movimiento: *${moving}*\n` +
-      `🟡 Conectados: *${connected}*\n` +
+      `🟡 Conectados/Encendidos: *${connected}*\n` +
       `🔴 Desconectados: *${disconnected}*\n\n` +
-      `Usa "📍 Ubicación de Vehículo" para ver dónde está cada uno.`,
+      `📡 Notificaciones automáticas: *Activas*\n` +
+      `Límite de velocidad configurado: *90 km/h*`,
       { parse_mode: "Markdown" }
     );
   };
@@ -161,7 +171,7 @@ export function startClientBot(): void {
   bot.hears("📊 Estado General", showEstado);
   bot.command("estado_general", showEstado);
 
-  // 📍 Ubicación de Vehículo — muestra teclado con placas
+  // 📍 Ubicación de Vehículo — teclado con placas
   bot.hears("📍 Ubicación de Vehículo", async (ctx: Context) => {
     const chatId = String(ctx.chat!.id);
     const client = await getClient(chatId);
@@ -171,13 +181,10 @@ export function startClientBot(): void {
     if (vehicles.length === 0) { await ctx.reply("ℹ️ No tienes vehículos asignados."); return; }
 
     const buttons = vehicles.map((v) => [`📍 ${v.plate || v.deviceName || v.deviceId}`]);
-    await ctx.reply(
-      "Selecciona el vehículo:",
-      Markup.keyboard([...buttons, ["🔙 Volver"]]).resize()
-    );
+    await ctx.reply("Selecciona el vehículo:", Markup.keyboard([...buttons, ["🔙 Volver"]]).resize());
   });
 
-  // Handle plate selection
+  // Handle plate selection from keyboard
   bot.hears(/^📍 (.+)$/, async (ctx: Context) => {
     const chatId = String(ctx.chat!.id);
     const match = (ctx.message as { text: string }).text.match(/^📍 (.+)$/);
@@ -203,7 +210,7 @@ export function startClientBot(): void {
 
       const st = statusLabel(device.status);
       let msg = `📍 *${vehicle.plate || vehicle.deviceName}*\n\nEstado: ${st}\n`;
-      if (device.speed && device.speed > 0) msg += `Velocidad: ${device.speed} km/h\n`;
+      if (device.speed && device.speed > 0) msg += `Velocidad: *${device.speed} km/h*\n`;
       msg += `Última conexión: ${device.lastConnection}\n`;
 
       if (device.lat && device.lng) {
@@ -246,7 +253,7 @@ export function startClientBot(): void {
 
       const st = statusLabel(device.status);
       let msg2 = `📍 *${vehicle.plate || vehicle.deviceName}*\n\nEstado: ${st}\n`;
-      if (device.speed && device.speed > 0) msg2 += `Velocidad: ${device.speed} km/h\n`;
+      if (device.speed && device.speed > 0) msg2 += `Velocidad: *${device.speed} km/h*\n`;
       msg2 += `Última conexión: ${device.lastConnection}\n`;
 
       if (device.lat && device.lng) {
@@ -261,22 +268,22 @@ export function startClientBot(): void {
   });
 
   // 🔙 Volver
-  bot.hears("🔙 Volver", async (ctx: Context) => {
-    await ctx.reply("Menú principal:", MAIN_MENU);
-  });
+  bot.hears("🔙 Volver", async (ctx: Context) => ctx.reply("Menú principal:", MAIN_MENU));
 
   // ❓ Ayuda
   const showHelp = async (ctx: Context) => {
     await ctx.reply(
       `*GPS SISTEMA C.A. — Ayuda*\n\n` +
-      `🚗 *Mis Vehículos* — Ver estado de tus vehículos\n` +
-      `📊 *Estado General* — Resumen de tu flota\n` +
-      `📍 *Ubicación de Vehículo* — Ver mapa en tiempo real\n\n` +
-      `*Comandos:*\n` +
-      `/mis_vehiculos — Lista de vehículos\n` +
-      `/ubicacion PLACA — Ubicación específica\n` +
-      `/estado_general — Resumen de flota\n\n` +
-      `📞 Para soporte contacte a GPS SISTEMA C.A.`,
+      `📡 *Notificaciones automáticas activas:*\n` +
+      `• 🔑 Vehículo encendido\n` +
+      `• 🔴 Vehículo apagado/desconectado\n` +
+      `• ⚠️ Exceso de velocidad (>90 km/h)\n` +
+      `• 🔄 Cambios de estado\n\n` +
+      `*Comandos manuales:*\n` +
+      `🚗 /mis_vehiculos — Lista y estado\n` +
+      `📍 /ubicacion PLACA — Ver ubicación\n` +
+      `📊 /estado_general — Resumen de flota\n\n` +
+      `📞 Soporte: GPS SISTEMA C.A.`,
       { parse_mode: "Markdown" }
     );
   };
@@ -284,8 +291,11 @@ export function startClientBot(): void {
   bot.hears("❓ Ayuda", showHelp);
   bot.command("ayuda", showHelp);
 
+  // Start notification service
+  startNotificationService(bot);
+
   bot.launch({ dropPendingUpdates: true })
-    .then(() => logger.info("Client Telegram bot started"))
+    .then(() => logger.info("Client Telegram bot started with notifications"))
     .catch((err: unknown) => logger.error({ err }, "Failed to start client bot"));
 
   process.once("SIGINT", () => bot.stop("SIGINT"));

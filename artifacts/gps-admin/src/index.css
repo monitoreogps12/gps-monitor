@@ -61,51 +61,53 @@
 }
 
 :root {
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
+  /* Corporate Light Theme */
+  --background: 210 20% 98%;
+  --foreground: 215 25% 15%;
 
-  --card: 222 47% 15%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 222 47% 20%;
+  --card: 0 0% 100%;
+  --card-foreground: 215 25% 15%;
+  --card-border: 214 20% 90%;
 
-  --popover: 222 47% 15%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 222 47% 20%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 25% 15%;
+  --popover-border: 214 20% 90%;
 
-  --primary: 199 89% 48%;
+  --primary: 213 94% 38%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 210 15% 94%;
+  --secondary-foreground: 215 25% 25%;
 
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 210 15% 95%;
+  --muted-foreground: 215 15% 50%;
 
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 213 94% 96%;
+  --accent-foreground: 213 94% 30%;
 
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
 
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  --border: 214 20% 88%;
+  --input: 214 20% 92%;
+  --ring: 213 94% 38%;
 
-  --sidebar: 222 47% 9%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 222 47% 14%;
-  --sidebar-primary: 199 89% 48%;
+  /* Sidebar — deep navy for corporate feel */
+  --sidebar: 218 45% 14%;
+  --sidebar-foreground: 213 30% 90%;
+  --sidebar-border: 218 45% 20%;
+  --sidebar-primary: 199 89% 55%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 217.2 32.6% 17.5%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 224.3 76.3% 48%;
+  --sidebar-accent: 218 45% 22%;
+  --sidebar-accent-foreground: 213 30% 95%;
+  --sidebar-ring: 199 89% 55%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: .5rem;
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 @layer base {
@@ -117,3 +119,9 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: hsl(210 15% 95%); }
+::-webkit-scrollbar-thumb { background: hsl(214 20% 78%); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(213 94% 55%); }
