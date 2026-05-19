@@ -1,14 +1,3 @@
-/**
- * Notification service — polls GPS devices every 15s, detects events,
- * waits 2 seconds before broadcasting to the admin app cache (invalidation)
- * and another 2 seconds before sending Telegram alerts to clients.
- *
- * Events:
- *   - Engine ON  (disconnected → active)
- *   - Engine OFF (active → disconnected)
- *   - Speed exceeded (>90 km/h)
- *   - Status change (active states only)
- */
 import { Telegraf } from "telegraf";
 import { db } from "@workspace/db";
 import { clientsTable, clientVehiclesTable } from "@workspace/db";
@@ -18,7 +7,7 @@ import { logger } from "../lib/logger";
 
 const SPEED_LIMIT_KMH = 90;
 const POLL_INTERVAL_MS = 15_000;
-const DELAY_APP_MS = 2_000;      // delay before marking as changed in cache
+const DELAY_APP_MS = 2_000; // delay before marking as changed in cache
 const DELAY_TELEGRAM_MS = 2_000; // delay after app update before sending Telegram
 
 // In-memory snapshot: deviceId → state
@@ -39,28 +28,48 @@ function sleep(ms: number): Promise<void> {
 
 function stEmoji(s: string) {
   switch (s) {
-    case "moving": return "🟢";
-    case "ack": return "🟡";
-    case "engine_idle": return "🟠";
-    case "disconnected_red": return "🔴";
-    case "disconnected_blue": return "🔵";
-    default: return "⚪";
+    case "moving":
+      return "🟢";
+    case "ack":
+      return "🟡";
+    case "engine_idle":
+      return "🟠";
+    case "disconnected_red":
+      return "🔴";
+    case "disconnected_blue":
+      return "🔵";
+    default:
+      return "⚪";
   }
 }
 
 function stLabel(s: string) {
   switch (s) {
-    case "moving": return "En Movimiento";
-    case "ack": return "ACK (Encendido)";
-    case "engine_idle": return "Motor en Ralentí";
-    case "disconnected_red": return "Desconectado — Sin Señal";
-    case "disconnected_blue": return "Desconectado";
-    default: return "Desconocido";
+    case "moving":
+      return "En Movimiento";
+    case "ack":
+      return "ACK (Encendido)";
+    case "engine_idle":
+      return "Motor en Ralentí";
+    case "disconnected_red":
+      return "Desconectado (Sin Señal)";
+    case "disconnected_blue":
+      return "Desconectado";
+    default:
+      return "Desconocido";
   }
 }
 
 function isDisconnected(status: string) {
   return status === "disconnected_blue" || status === "disconnected_red";
+}
+
+function getFechaActual(): string {
+  const ahora = new Date();
+  // Formato de Venezuela (DD-MM-YYYY hh:mm:ss AM/PM)
+  return ahora
+    .toLocaleString("es-VE", { timeZone: "America/Caracas" })
+    .replace(",", "");
 }
 
 async function sendTelegram(bot: Telegraf, chatId: string, text: string) {
@@ -74,7 +83,7 @@ async function sendTelegram(bot: Telegraf, chatId: string, text: string) {
 async function dispatchAlerts(
   bot: Telegraf,
   recipients: string[],
-  messages: string[]
+  messages: string[],
 ): Promise<void> {
   if (messages.length === 0 || recipients.length === 0) return;
 
@@ -112,49 +121,79 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
     for (const device of devices) {
       const owners = deviceOwners.get(device.id);
       const prev = snaps.get(device.id);
-      const plate = vehicles.find((v) => v.deviceId === device.id)?.plate || device.plate || device.name;
+
+      const vehicleRelation = vehicles.find((v) => v.deviceId === device.id);
+      const plate = vehicleRelation?.plate || device.plate || "S/P";
+      const vehicleName =
+        vehicleRelation?.deviceName || device.name || "Vehículo";
+
+      // Buscar el nombre del cliente dueño para la plantilla
+      const clientRelation = clients.find(
+        (c) => c.id === vehicleRelation?.clientId,
+      );
+      const clientName = clientRelation?.name || "Cliente GPS";
 
       if (!prev) {
-        snaps.set(device.id, { status: device.status, speed: device.speed, speedAlerted: false });
+        snaps.set(device.id, {
+          status: device.status,
+          speed: device.speed,
+          speedAlerted: false,
+        });
         continue;
       }
 
       const msgs: string[] = [];
       const wasDisc = isDisconnected(prev.status);
       const isDisc = isDisconnected(device.status);
+      const fecha = getFechaActual();
+
+      // Base common layout logic generator
+      const buildAlertMessage = (evento: string, incluirMaps = true) => {
+        let msg =
+          `🔔 *AVISO DE MONITOREO*\n\n` +
+          `👤 *Cliente:* ${clientName}\n` +
+          `🚘 *Vehículo:* ${vehicleName}\n` +
+          `📍 *Placa:* ${plate}\n` +
+          `⚠️ *Evento:* ${evento}\n` +
+          `🕒 *Fecha:* ${fecha}\n`;
+
+        if (incluirMaps && device.lat && device.lng) {
+          msg += `📌 *Ubicación:* [Ver en Google Maps](https://maps.google.com/?q=${device.lat},${device.lng})`;
+        } else if (incluirMaps) {
+          msg += `📌 *Ubicación:* Posición GPS no disponible`;
+        }
+        return msg;
+      };
 
       // Engine ON
       if (wasDisc && !isDisc) {
-        msgs.push(
-          `🔑 *Vehículo Encendido*\n\n` +
-          `🚗 *${plate}*\n` +
-          `${stEmoji(device.status)} ${stLabel(device.status)}\n` +
-          (device.lat && device.lng
-            ? `📍 [Ver ubicación](https://maps.google.com/?q=${device.lat},${device.lng})`
-            : `📍 Posición no disponible`)
-        );
+        msgs.push(buildAlertMessage("Vehículo Encendido"));
       }
 
       // Engine OFF / disconnected
       if (!wasDisc && isDisc) {
+        const lastConnStr = device.lastConnection
+          ? `\n🕐 Última conexión: ${device.lastConnection}`
+          : "";
         msgs.push(
-          `🔴 *Vehículo Apagado / Desconectado*\n\n` +
-          `🚗 *${plate}*\n` +
-          `${stEmoji(device.status)} ${stLabel(device.status)}\n` +
-          `🕐 Última conexión: ${device.lastConnection}`
+          buildAlertMessage(
+            `Vehículo Apagado / Desconectado (${stLabel(device.status)})${lastConnStr}`,
+            false,
+          ),
         );
       }
 
       // Speed alert
       const spd = device.speed ?? 0;
-      if (device.status === "moving" && spd > SPEED_LIMIT_KMH && !prev.speedAlerted) {
+      if (
+        device.status === "moving" &&
+        spd > SPEED_LIMIT_KMH &&
+        !prev.speedAlerted
+      ) {
         msgs.push(
-          `⚠️ *EXCESO DE VELOCIDAD*\n\n` +
-          `🚗 *${plate}*\n` +
-          `🚨 Velocidad: *${spd} km/h* (límite: ${SPEED_LIMIT_KMH} km/h)\n` +
-          (device.lat && device.lng
-            ? `📍 [Ver en mapa](https://maps.google.com/?q=${device.lat},${device.lng})`
-            : "")
+          buildAlertMessage(
+            `💥 EXCESO DE VELOCIDAD a *${spd} km/h* (Límite: ${SPEED_LIMIT_KMH} km/h)`,
+          ),
         );
         snaps.set(device.id, { ...prev, speedAlerted: true });
       }
@@ -165,13 +204,14 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
       // Status change (between active states)
       if (
         prev.status !== device.status &&
-        !wasDisc && !isDisc &&
+        !wasDisc &&
+        !isDisc &&
         device.status !== "moving"
       ) {
         msgs.push(
-          `${stEmoji(device.status)} *Cambio de Estado*\n\n` +
-          `🚗 *${plate}*\n` +
-          `Estado: ${stLabel(device.status)}`
+          buildAlertMessage(
+            `Cambio de Estado: ${stEmoji(device.status)} ${stLabel(device.status)}`,
+          ),
         );
       }
 
@@ -184,7 +224,6 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
 
       // Dispatch with delays (only if owners exist and messages to send)
       if (msgs.length > 0 && owners && owners.length > 0) {
-        // Debounce per device to avoid duplicates on rapid polls
         const existing = pendingAlerts.get(device.id);
         if (existing) clearTimeout(existing);
 
@@ -202,7 +241,9 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
 }
 
 export function startNotificationService(bot: Telegraf): void {
-  logger.info("GPS notification service started (poll: 15s, delay: app+2s → telegram+2s)");
+  logger.info(
+    "GPS notification service started (poll: 15s, delay: app+2s → telegram+2s)",
+  );
 
   // First poll after 30s warmup
   setTimeout(() => {
