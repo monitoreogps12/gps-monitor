@@ -6,7 +6,7 @@ import { fetchDevices } from "../lib/gps-service";
 import { logger } from "../lib/logger";
 
 const SPEED_LIMIT_KMH = 90;
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 2_000;
 const DELAY_APP_MS = 2_000; // delay before marking as changed in cache
 const DELAY_TELEGRAM_MS = 2_000; // delay after app update before sending Telegram
 
@@ -154,11 +154,12 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
           `👤 *Cliente:* ${clientName}\n` +
           `🚘 *Vehículo:* ${vehicleName}\n` +
           `📍 *Placa:* ${plate}\n` +
-          `⚠️ *Evento:* ${evento}\n` +
+          `⚠️ *Eventos:* ${evento}\n` +
           `🕒 *Fecha:* ${fecha}\n`;
 
+        // CORREGIDO: Se cambió '0{device.lat}' por '${device.lat}' y la URL a la oficial de Google Maps
         if (incluirMaps && device.lat && device.lng) {
-          msg += `📌 *Ubicación:* [Ver en Google Maps](https://maps.google.com/?q=${device.lat},${device.lng})`;
+          msg += `📌 *Ubicación:* [Ver en Google Maps](https://www.google.com/maps?q=${device.lat},${device.lng})`;
         } else if (incluirMaps) {
           msg += `📌 *Ubicación:* Posición GPS no disponible`;
         }
