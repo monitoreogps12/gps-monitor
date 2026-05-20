@@ -275,5 +275,5 @@ export function startNotificationService(bot: Telegraf): void {
   setTimeout(() => {
     void pollAndNotify(bot);
     setInterval(() => void pollAndNotify(bot), POLL_INTERVAL_MS);
-  }, 5_000);
+  }, 2_000);
 }
