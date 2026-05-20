@@ -110,6 +110,35 @@ paths:
                 items:
                   $ref: "#/components/schemas/RecentEvent"
 
+  /gps/devices/{id}/sensors:
+    get:
+      operationId: getDeviceSensors
+      tags: [gps]
+      summary: Get sensor data for a device
+      description: Returns the sensor array for a single device (engine hours, battery, odometer, etc). Cached up to 5 minutes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Device ID (numeric string from the GPS platform)
+      responses:
+        "200":
+          description: Sensor data for the device
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceSensor"
+        "503":
+          description: Cannot connect to tracking platform
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /gps/connection:
     get:
       operationId: getConnectionStatus
@@ -360,6 +389,37 @@ components:
         driver:
           type: ["string", "null"]
 
+    DeviceSensor:
+      type: object
+      required:
+        - id
+        - type
+        - name
+        - value
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          description: Sensor type (engine, engine_hours, battery, odometer, logical, etc.)
+        name:
+          type: string
+          description: Human-readable sensor name (e.g. "Motor", "Horas Motor", "Nivel de Bateria")
+        value:
+          type: string
+          description: Formatted sensor value with units (e.g. "1221.4 h", "100 %", "283926 km")
+        val:
+          description: Raw numeric or boolean value
+          oneOf:
+            - type: number
+            - type: boolean
+            - type: string
+            - type: "null"
+        show_in_popup:
+          type: ["integer", "null"]
+        scale_value:
+          type: ["number", "null"]
+
     LivePosition:
       type: object
       required:
@@ -409,6 +469,12 @@ components:
           type: ["number", "null"]
         stopDurationSec:
           type: ["number", "null"]
+        engineHours:
+          type: ["string", "null"]
+          description: Engine hours from sensor (e.g. "1221.4 h")
+        batteryLevel:
+          type: ["string", "null"]
+          description: Battery level from sensor (e.g. "100 %")
 
     FleetStats:
       type: object

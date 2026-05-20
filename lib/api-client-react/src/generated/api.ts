@@ -27,6 +27,7 @@ import type {
   ConnectionStatus,
   CreateClientInput,
   Device,
+  DeviceSensor,
   ErrorResponse,
   FleetStats,
   GetRecentEventsParams,
@@ -435,6 +436,84 @@ export function useGetRecentEvents<TData = Awaited<ReturnType<typeof getRecentEv
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRecentEventsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetDeviceSensorsUrl = (id: string,) => {
+
+
+
+
+  return `/api/gps/devices/${id}/sensors`
+}
+
+/**
+ * Returns the sensor array for a single device (engine hours, battery, odometer, etc). Cached up to 5 minutes.
+ * @summary Get sensor data for a device
+ */
+export const getDeviceSensors = async (id: string, options?: RequestInit): Promise<DeviceSensor[]> => {
+
+  return customFetch<DeviceSensor[]>(getGetDeviceSensorsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeviceSensorsQueryKey = (id: string,) => {
+    return [
+    `/api/gps/devices/${id}/sensors`
+    ] as const;
+    }
+
+
+export const getGetDeviceSensorsQueryOptions = <TData = Awaited<ReturnType<typeof getDeviceSensors>>, TError = ErrorType<ErrorResponse>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeviceSensors>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeviceSensorsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeviceSensors>>> = ({ signal }) => getDeviceSensors(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeviceSensors>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDeviceSensorsQueryResult = NonNullable<Awaited<ReturnType<typeof getDeviceSensors>>>
+export type GetDeviceSensorsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get sensor data for a device
+ */
+
+export function useGetDeviceSensors<TData = Awaited<ReturnType<typeof getDeviceSensors>>, TError = ErrorType<ErrorResponse>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeviceSensors>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDeviceSensorsQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

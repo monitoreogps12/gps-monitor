@@ -152,6 +152,14 @@ export function Mapa() {
         const dir = dirs[Math.round((pos.heading ?? 0) / 45) % 8];
         sensorRows.push(['Curso', `${pos.heading}° ${dir}`]);
       }
+      if (pos.engineHours) {
+        sensorRows.push(['Horas Motor', `<b>${pos.engineHours}</b>`]);
+      }
+      if (pos.batteryLevel) {
+        const bv = parseFloat(pos.batteryLevel);
+        const bColor = bv >= 70 ? '#22c55e' : bv >= 30 ? '#eab308' : '#ef4444';
+        sensorRows.push(['Batería', `<b style="color:${bColor}">${pos.batteryLevel}</b>`]);
+      }
 
       const popup = `
         <div style="font-family:'Inter',sans-serif;min-width:250px;max-width:290px">

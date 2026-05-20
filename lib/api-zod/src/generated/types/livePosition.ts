@@ -39,4 +39,14 @@ export interface LivePosition {
   totalDistance?: number | null;
   /** @nullable */
   stopDurationSec?: number | null;
+  /**
+     * Engine hours from sensor (e.g. "1221.4 h")
+     * @nullable
+     */
+  engineHours?: string | null;
+  /**
+     * Battery level from sensor (e.g. "100 %")
+     * @nullable
+     */
+  batteryLevel?: string | null;
 }

@@ -4,6 +4,7 @@ import {
   fetchLivePositions,
   fetchFleetStats,
   getConnectionStatus,
+  fetchDeviceSensors,
 } from "../lib/gps-service";
 import { getRecentEvents } from "../bots/notifications";
 import {
@@ -12,6 +13,7 @@ import {
   GetFleetStatsResponse,
   GetConnectionStatusResponse,
   GetRecentEventsResponse,
+  GetDeviceSensorsResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -62,5 +64,14 @@ router.get("/gps/events/recent", (req, res): void => {
   res.json(GetRecentEventsResponse.parse(events));
 });
 
+router.get("/gps/devices/:id/sensors", async (req, res): Promise<void> => {
+  try {
+    const sensors = await fetchDeviceSensors(req.params.id);
+    res.json(GetDeviceSensorsResponse.parse(sensors));
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch device sensors");
+    res.status(503).json({ error: "Cannot connect to GPS tracking platform" });
+  }
+});
 
 export default router;

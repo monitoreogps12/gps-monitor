@@ -49,6 +49,16 @@ export interface LivePosition {
   altitude: number | null;
   totalDistance: number | null;
   stopDurationSec: number | null;
+  engineHours: string | null;
+  batteryLevel: string | null;
+}
+
+export interface DeviceSensor {
+  id: number;
+  type: string;
+  name: string;
+  value: string;
+  val: number | boolean | string | null;
 }
 
 export interface PlatformEvent {
@@ -277,6 +287,11 @@ let lastLiveFetch = 0;
 let liveCheckTimestamp = 0;
 const LIVE_CACHE_TTL = 3 * 1000; // 3 seconds
 
+// Cache for device sensors (refreshed every 5 minutes via /objects/items?full=true)
+const sensorCache = new Map<string, DeviceSensor[]>();
+let lastSensorFetch = 0;
+const SENSOR_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function fetchLivePositions(): Promise<LivePosition[]> {
   // Return cached if very fresh
   if (Date.now() - lastLiveFetch < LIVE_CACHE_TTL && cachedLivePositions.length > 0) {
@@ -322,6 +337,10 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
           d.zone_name ?? d.zone ?? d.geofence ?? d.geofence_name ?? null;
         const zoneName = rawZone ? String(rawZone).trim() || null : null;
 
+        const sensors = sensorCache.get(id) ?? [];
+        const engineHoursSensor = sensors.find((s) => s.type === "engine_hours");
+        const batterySensor = sensors.find((s) => s.type === "battery");
+
         updatesById.set(id, {
           id,
           name: String(d.name || ""),
@@ -342,6 +361,8 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
           altitude: d.altitude != null ? parseFloat(String(d.altitude)) : null,
           totalDistance: d.total_distance != null ? parseFloat(String(d.total_distance)) : null,
           stopDurationSec: d.stop_duration_sec != null ? parseFloat(String(d.stop_duration_sec)) : null,
+          engineHours: engineHoursSensor?.value ?? null,
+          batteryLevel: batterySensor?.value ?? null,
         });
       }
 
@@ -358,6 +379,9 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
       // Update timestamp for incremental future calls
       if (newTimestamp) liveCheckTimestamp = newTimestamp;
       lastLiveFetch = Date.now();
+
+      // Trigger sensor cache refresh in background (non-blocking, every 5 mins)
+      void refreshSensorCache();
 
       logger.info({ count: cachedLivePositions.length, updates: updatesById.size }, "Fetched live positions");
       return cachedLivePositions;
@@ -388,6 +412,70 @@ export async function fetchFleetStats() {
     else if (d.status === "engine_idle") stats.engineIdle++;
   }
   return stats;
+}
+
+/**
+ * Refresca el cache de sensores de todos los dispositivos.
+ * Llama a /objects/items?full=true — 852KB aprox — cada 5 minutos.
+ */
+async function refreshSensorCache(): Promise<void> {
+  if (Date.now() - lastSensorFetch < SENSOR_CACHE_TTL) return;
+  const ok = await ensureSession();
+  if (!ok) return;
+  const client = createClient();
+  try {
+    const resp = await client.get("/objects/items", {
+      params: { full: true },
+      headers: {
+        Cookie: cookieHeader(),
+        "X-Requested-With": "XMLHttpRequest",
+        Referer: `${GPS_BASE_URL}/objects`,
+        Accept: "application/json",
+      },
+    });
+    if (resp.data?.data && Array.isArray(resp.data.data)) {
+      for (const item of resp.data.data as Record<string, unknown>[]) {
+        const id = String(item.id ?? "");
+        if (!id) continue;
+        const sensors = Array.isArray(item.sensors) ? (item.sensors as DeviceSensor[]) : [];
+        sensorCache.set(id, sensors);
+      }
+      lastSensorFetch = Date.now();
+      logger.info({ devices: sensorCache.size }, "Sensor cache refreshed");
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to refresh sensor cache");
+  }
+}
+
+/**
+ * Obtiene sensores de un dispositivo específico.
+ * Devuelve del cache si está disponible, si no hace una solicitud individual.
+ */
+export async function fetchDeviceSensors(deviceId: string): Promise<DeviceSensor[]> {
+  if (sensorCache.has(deviceId)) return sensorCache.get(deviceId)!;
+
+  const ok = await ensureSession();
+  if (!ok) return [];
+  const client = createClient();
+  try {
+    const resp = await client.get("/objects/items", {
+      params: { id: deviceId, full: true },
+      headers: {
+        Cookie: cookieHeader(),
+        "X-Requested-With": "XMLHttpRequest",
+        Referer: `${GPS_BASE_URL}/objects`,
+        Accept: "application/json",
+      },
+    });
+    const item = (resp.data?.data as Record<string, unknown>[])?.[0];
+    const sensors: DeviceSensor[] = Array.isArray(item?.sensors) ? (item.sensors as DeviceSensor[]) : [];
+    sensorCache.set(deviceId, sensors);
+    return sensors;
+  } catch (err) {
+    logger.error({ err, deviceId }, "Failed to fetch device sensors");
+    return [];
+  }
 }
 
 /**
@@ -445,6 +533,160 @@ export async function fetchPlatformEvents(sinceId = 0): Promise<PlatformEvent[]>
   }
 }
 
+
+/**
+ * @deprecated Remove this function — kept only for reference, do not call.
+ * @internal
+ */
+async function _unusedProbeMonitoringPage(): Promise<Record<string, unknown>> {
+  const ok = await ensureSession();
+  if (!ok) return { error: "auth failed" };
+  const client = createClient();
+  const h = { Cookie: cookieHeader(), Accept: "text/html,application/json,*/*", Referer: `${GPS_BASE_URL}/history` };
+
+  const results: Record<string, unknown> = {};
+
+  // Load history page HTML to find form and CSRF
+  try {
+    const histPage = await client.get("/history", { headers: h });
+    const histHtml = String(histPage.data || "");
+    const csrf = histHtml.match(/name="_token"\s+(?:type="hidden"\s+)?value="([^"]+)"/)?.[1] ?? "";
+    results["histPageStatus"] = histPage.status;
+    results["histPageCsrf"] = csrf;
+    // Find form action
+    const formAction = histHtml.match(/<form[^>]*action="([^"]+)"/gi)?.map(m => m.match(/action="([^"]+)"/)?.[1]) ?? [];
+    results["formActions"] = formAction;
+    // Find select/input names for dates and device
+    const inputNames = [...histHtml.matchAll(/name="([^"]+)"/g)].map(m => m[1]);
+    results["inputNames"] = [...new Set(inputNames)];
+    // Find any select for device ID
+    const deviceOptions = [...histHtml.matchAll(/value="(\d+)"[^>]*>([^<]{3,50})</g)].slice(0, 5).map(m => `${m[1]}: ${m[2]}`);
+    results["deviceOptions"] = deviceOptions;
+
+    // Try GET /history/positions with different date formats
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 86400000);
+    const fmtISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const fmtVE = (d: Date) => `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;
+
+    const attempts: Array<Record<string, string>> = [
+      // Format 1: ISO dates + device_id
+      { device_id: "879", date_from: `${fmtISO(yesterday)} 00:00:00`, date_to: `${fmtISO(today)} 23:59:59`, _token: csrf },
+      // Format 2: Venezuelan format
+      { device_id: "879", date_from: fmtVE(yesterday), date_to: fmtVE(today), _token: csrf },
+      // Format 3: timestamps
+      { device_id: "879", from: String(Math.floor(yesterday.getTime()/1000)), to: String(Math.floor(today.getTime()/1000)), _token: csrf },
+      // Format 4: just today
+      { device_id: "879", date_from: fmtISO(today), date_to: fmtISO(today), _token: csrf },
+      // Format 5: separate hour/min params
+      { device_id: "879", date_from: fmtISO(yesterday), date_from_h: "00", date_from_m: "00", date_to: fmtISO(today), date_to_h: "23", date_to_m: "59", _token: csrf },
+    ];
+
+    const tryResults: Record<string, unknown> = {};
+    for (let i = 0; i < attempts.length; i++) {
+      // Try GET
+      const rg = await client.get("/history/positions", {
+        params: attempts[i],
+        headers: { ...h, "X-Requested-With": "XMLHttpRequest" }
+      }).catch(e => ({ status: "ERR", data: String(e) }));
+
+      // Try POST
+      const formData = new URLSearchParams(attempts[i]).toString();
+      const rp = await client.post("/history/positions", formData, {
+        headers: { ...h, "X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded" }
+      }).catch(e => ({ status: "ERR", data: String(e) }));
+
+      const gBody = String(rg.data || "").replace(/<[^>]+>/g," ").replace(/\s+/g," ").substring(0,200);
+      const pBody = String(rp.data || "").replace(/<[^>]+>/g," ").replace(/\s+/g," ").substring(0,200);
+      tryResults[`attempt${i+1}_GET`] = { status: rg.status, body: gBody };
+      tryResults[`attempt${i+1}_POST`] = { status: rp.status, body: pBody };
+    }
+    results["historyPositionsTries"] = tryResults;
+  } catch (e) {
+    results["historyPageError"] = String(e);
+  }
+
+  // Load app.js, find app.urls definition and history endpoint
+  try {
+    const jsResp = await client.get("/assets/js/app.js", { headers: h });
+    const js = String(jsResp.data || "");
+    results["jsLength"] = js.length;
+
+    // Find app.urls object definition — it lists all backend URLs
+    const appUrlsIdx = js.indexOf("app.urls=");
+    if (appUrlsIdx !== -1) {
+      results["appUrls"] = js.substring(appUrlsIdx, appUrlsIdx + 2000);
+    }
+    // Also try app.urls = { ... } format
+    const appUrlsIdx2 = js.indexOf("app.urls =");
+    if (appUrlsIdx2 !== -1) {
+      results["appUrls2"] = js.substring(appUrlsIdx2, appUrlsIdx2 + 2000);
+    }
+    // Try t.urls = or e.urls =
+    const urlsMatches = [...js.matchAll(/[a-z]\.urls\s*=\s*\{/g)];
+    results["urlsAssignments"] = urlsMatches.map(m => js.substring(m.index!, m.index! + 1000));
+
+    // Find all AJAX $.get / $.post calls in the JS
+    const ajaxCalls: string[] = [];
+    const ajaxRe = /\$\.(get|post|ajax)\s*\(\s*["']([^"']{3,60})["']/g;
+    let am: RegExpExecArray | null;
+    while ((am = ajaxRe.exec(js)) !== null) {
+      ajaxCalls.push(`${am[1].toUpperCase()} ${am[2]}`);
+    }
+    results["ajaxCalls"] = [...new Set(ajaxCalls)];
+
+    // Find all string literals that look like route paths
+    const routePaths = [...js.matchAll(/["'](\/[a-zA-Z][a-zA-Z0-9_/-]{3,50})["']/g)]
+      .map(m => m[1])
+      .filter(u => !u.includes(".") || u.endsWith(".json"));
+    results["routePaths"] = [...new Set(routePaths)].slice(0, 100);
+
+    // History-specific search
+    const histIdx = js.indexOf("history");
+    const histContexts: string[] = [];
+    let hi = 0;
+    while ((hi = js.indexOf("/history", hi)) !== -1) {
+      histContexts.push(js.substring(Math.max(0, hi - 20), hi + 80));
+      hi += 5;
+    }
+    results["historyContexts"] = histContexts.slice(0, 20);
+
+  } catch (e) {
+    results["jsError"] = String(e);
+  }
+
+  // Probe history endpoints with proper date params
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 86400000);
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+
+  const histPaths = [
+    "/history/index",
+    "/history/get_history",
+    "/history/positions",
+    "/history/show",
+    "/history/data",
+  ];
+  const histResults: Record<string, unknown> = {};
+  await Promise.all(histPaths.map(async (p) => {
+    const params: Record<string, string> = {
+      device_id: "879", id: "879",
+      date_from: fmt(yesterday), date_to: fmt(today),
+      from: fmt(yesterday), to: fmt(today), limit: "1"
+    };
+    const r = await client.get(p, {
+      params,
+      headers: { ...h, "X-Requested-With": "XMLHttpRequest" }
+    }).catch(e => ({ status: "ERR", data: String(e) }));
+    const body = typeof r.data === "string"
+      ? r.data.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").substring(0, 400)
+      : JSON.stringify(r.data).substring(0, 400);
+    histResults[p] = { status: r.status, body };
+  }));
+  results["historyEndpoints"] = histResults;
+
+  return results;
+}
 
 export async function getConnectionStatus() {
   const ok = await ensureSession();

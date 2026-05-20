@@ -61,7 +61,9 @@ export const GetLivePositionsResponseItem = zod.object({
   "engineStatus": zod.boolean().nullish(),
   "altitude": zod.number().nullish(),
   "totalDistance": zod.number().nullish(),
-  "stopDurationSec": zod.number().nullish()
+  "stopDurationSec": zod.number().nullish(),
+  "engineHours": zod.string().nullish().describe('Engine hours from sensor (e.g. \"1221.4 h\")'),
+  "batteryLevel": zod.string().nullish().describe('Battery level from sensor (e.g. \"100 %\")')
 })
 export const GetLivePositionsResponse = zod.array(GetLivePositionsResponseItem)
 
@@ -105,6 +107,26 @@ export const GetRecentEventsResponseItem = zod.object({
   "seenAt": zod.string()
 })
 export const GetRecentEventsResponse = zod.array(GetRecentEventsResponseItem)
+
+
+/**
+ * Returns the sensor array for a single device (engine hours, battery, odometer, etc). Cached up to 5 minutes.
+ * @summary Get sensor data for a device
+ */
+export const GetDeviceSensorsParams = zod.object({
+  "id": zod.coerce.string().describe('Device ID (numeric string from the GPS platform)')
+})
+
+export const GetDeviceSensorsResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.string().describe('Sensor type (engine, engine_hours, battery, odometer, logical, etc.)'),
+  "name": zod.string().describe('Human-readable sensor name (e.g. \"Motor\", \"Horas Motor\", \"Nivel de Bateria\")'),
+  "value": zod.string().describe('Formatted sensor value with units (e.g. \"1221.4 h\", \"100 %\", \"283926 km\")'),
+  "val": zod.union([zod.number(),zod.boolean(),zod.string(),zod.null()]).optional().describe('Raw numeric or boolean value'),
+  "show_in_popup": zod.number().nullish(),
+  "scale_value": zod.number().nullish()
+})
+export const GetDeviceSensorsResponse = zod.array(GetDeviceSensorsResponseItem)
 
 
 /**

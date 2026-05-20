@@ -44,6 +44,22 @@ export interface Device {
   driver?: string | null;
 }
 
+export interface DeviceSensor {
+  id: number;
+  /** Sensor type (engine, engine_hours, battery, odometer, logical, etc.) */
+  type: string;
+  /** Human-readable sensor name (e.g. "Motor", "Horas Motor", "Nivel de Bateria") */
+  name: string;
+  /** Formatted sensor value with units (e.g. "1221.4 h", "100 %", "283926 km") */
+  value: string;
+  /** Raw numeric or boolean value */
+  val?: number | boolean | string | null;
+  /** @nullable */
+  show_in_popup?: number | null;
+  /** @nullable */
+  scale_value?: number | null;
+}
+
 export type LivePositionStatus = typeof LivePositionStatus[keyof typeof LivePositionStatus];
 
 
@@ -87,6 +103,16 @@ export interface LivePosition {
   totalDistance?: number | null;
   /** @nullable */
   stopDurationSec?: number | null;
+  /**
+     * Engine hours from sensor (e.g. "1221.4 h")
+     * @nullable
+     */
+  engineHours?: string | null;
+  /**
+     * Battery level from sensor (e.g. "100 %")
+     * @nullable
+     */
+  batteryLevel?: string | null;
 }
 
 export interface FleetStats {

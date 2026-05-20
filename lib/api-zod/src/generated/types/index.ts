@@ -13,6 +13,7 @@ export * from './clientWithVehicles';
 export * from './connectionStatus';
 export * from './createClientInput';
 export * from './device';
+export * from './deviceSensor';
 export * from './deviceStatus';
 export * from './errorResponse';
 export * from './fleetStats';
