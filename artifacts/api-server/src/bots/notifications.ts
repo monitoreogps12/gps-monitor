@@ -7,8 +7,8 @@ import { logger } from "../lib/logger";
 
 const SPEED_LIMIT_KMH = 90;
 const POLL_INTERVAL_MS = 2_000;
-const DELAY_APP_MS = 2_000; // delay before marking as changed in cache
-const DELAY_TELEGRAM_MS = 2_000; // delay after app update before sending Telegram
+const DELAY_APP_MS = 1_000;      // 1s after detection → app update
+const DELAY_TELEGRAM_MS = 1_000; // 1s after app → Telegram to client
 
 // In-memory snapshot: deviceId → state
 interface Snap {
@@ -87,10 +87,10 @@ async function dispatchAlerts(
 ): Promise<void> {
   if (messages.length === 0 || recipients.length === 0) return;
 
-  // Step 1: wait 2s for app (simulate cache invalidation signal)
+  // Step 1: 1s → app update
   await sleep(DELAY_APP_MS);
 
-  // Step 2: wait another 2s before Telegram
+  // Step 2: 1s más → Telegram al cliente
   await sleep(DELAY_TELEGRAM_MS);
 
   for (const msg of messages) {
@@ -243,7 +243,7 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
 
 export function startNotificationService(bot: Telegraf): void {
   logger.info(
-    "GPS notification service started (poll: 15s, delay: app+2s → telegram+2s)",
+    "GPS notification service started (poll: 2s, delay: sistema → app +1s → telegram +1s)",
   );
 
   // First poll after 30s warmup
