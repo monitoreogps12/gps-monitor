@@ -72,6 +72,12 @@ function getFechaActual(): string {
     .replace(",", "");
 }
 
+interface Alert {
+  text: string;
+  lat?: number | null;
+  lng?: number | null;
+}
+
 async function sendTelegram(bot: Telegraf, chatId: string, text: string) {
   try {
     await bot.telegram.sendMessage(chatId, text, { parse_mode: "Markdown" });
@@ -80,12 +86,20 @@ async function sendTelegram(bot: Telegraf, chatId: string, text: string) {
   }
 }
 
+async function sendLocation(bot: Telegraf, chatId: string, lat: number, lng: number) {
+  try {
+    await bot.telegram.sendLocation(chatId, lat, lng);
+  } catch (err) {
+    logger.warn({ err, chatId }, "Telegram sendLocation failed");
+  }
+}
+
 async function dispatchAlerts(
   bot: Telegraf,
   recipients: string[],
-  messages: string[],
+  alerts: Alert[],
 ): Promise<void> {
-  if (messages.length === 0 || recipients.length === 0) return;
+  if (alerts.length === 0 || recipients.length === 0) return;
 
   // Step 1: 1s → app update
   await sleep(DELAY_APP_MS);
@@ -93,9 +107,13 @@ async function dispatchAlerts(
   // Step 2: 1s más → Telegram al cliente
   await sleep(DELAY_TELEGRAM_MS);
 
-  for (const msg of messages) {
+  for (const alert of alerts) {
     for (const chatId of recipients) {
-      await sendTelegram(bot, chatId, msg);
+      await sendTelegram(bot, chatId, alert.text);
+      // Enviar ubicación nativa de Telegram si hay coordenadas
+      if (alert.lat && alert.lng) {
+        await sendLocation(bot, chatId, alert.lat, alert.lng);
+      }
     }
   }
 }
@@ -142,78 +160,87 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
         continue;
       }
 
-      const msgs: string[] = [];
+      const alerts: Alert[] = [];
       const wasDisc = isDisconnected(prev.status);
       const isDisc = isDisconnected(device.status);
       const fecha = getFechaActual();
+      const hasGps = !!(device.lat && device.lng);
+      const mapsLink = hasGps
+        ? `[📍 Ver en Google Maps](https://www.google.com/maps?q=${device.lat},${device.lng})`
+        : null;
 
-      // Base common layout logic generator
-      const buildAlertMessage = (evento: string, incluirMaps = true) => {
-        let msg =
-          `🔔 *AVISO DE MONITOREO*\n\n` +
-          `👤 *Cliente:* ${clientName}\n` +
-          `🚘 *Vehículo:* ${vehicleName}\n` +
-          `📍 *Placa:* ${plate}\n` +
-          `⚠️ *Eventos:* ${evento}\n` +
-          `🕒 *Fecha:* ${fecha}\n`;
-
-        // CORREGIDO: Se cambió '0{device.lat}' por '${device.lat}' y la URL a la oficial de Google Maps
-        if (incluirMaps && device.lat && device.lng) {
-          msg += `📌 *Ubicación:* [Ver en Google Maps](https://www.google.com/maps?q=${device.lat},${device.lng})`;
-        } else if (incluirMaps) {
-          msg += `📌 *Ubicación:* Posición GPS no disponible`;
-        }
-        return msg;
-      };
-
-      // Engine ON
+      // ── Engine ON ──────────────────────────────────────────────────────
       if (wasDisc && !isDisc) {
-        msgs.push(buildAlertMessage("Vehículo Encendido"));
+        const text =
+          `🟢 *VEHÍCULO ENCENDIDO*\n` +
+          `${"─".repeat(28)}\n` +
+          `👤 *Cliente:*   ${clientName}\n` +
+          `🚘 *Vehículo:* ${vehicleName}\n` +
+          `🔖 *Placa:*      ${plate}\n` +
+          `${stEmoji(device.status)} *Estado:*     ${stLabel(device.status)}\n` +
+          `🕒 *Hora:*       ${fecha}\n` +
+          `${"─".repeat(28)}\n` +
+          (mapsLink
+            ? `${mapsLink}\n_(Se adjunta ubicación en tiempo real)_`
+            : `📍 _Posición GPS no disponible_`);
+        alerts.push({ text, lat: device.lat, lng: device.lng });
       }
 
-      // Engine OFF / disconnected
+      // ── Engine OFF ─────────────────────────────────────────────────────
       if (!wasDisc && isDisc) {
-        const lastConnStr = device.lastConnection
-          ? `\n🕐 Última conexión: ${device.lastConnection}`
-          : "";
-        msgs.push(
-          buildAlertMessage(
-            `Vehículo Apagado / Desconectado (${stLabel(device.status)})${lastConnStr}`,
-            false,
-          ),
-        );
+        const text =
+          `🔴 *VEHÍCULO APAGADO / DESCONECTADO*\n` +
+          `${"─".repeat(28)}\n` +
+          `👤 *Cliente:*          ${clientName}\n` +
+          `🚘 *Vehículo:*        ${vehicleName}\n` +
+          `🔖 *Placa:*             ${plate}\n` +
+          `${stEmoji(device.status)} *Estado:*          ${stLabel(device.status)}\n` +
+          `🕐 *Última conexión:* ${device.lastConnection || "N/A"}\n` +
+          `🕒 *Hora del aviso:*  ${fecha}\n` +
+          `${"─".repeat(28)}\n` +
+          (mapsLink
+            ? `${mapsLink}\n_(Última posición conocida adjunta)_`
+            : `📍 _Posición GPS no disponible_`);
+        alerts.push({ text, lat: device.lat, lng: device.lng });
       }
 
-      // Speed alert
+      // ── Speed alert ────────────────────────────────────────────────────
       const spd = device.speed ?? 0;
-      if (
-        device.status === "moving" &&
-        spd > SPEED_LIMIT_KMH &&
-        !prev.speedAlerted
-      ) {
-        msgs.push(
-          buildAlertMessage(
-            `💥 EXCESO DE VELOCIDAD a *${spd} km/h* (Límite: ${SPEED_LIMIT_KMH} km/h)`,
-          ),
-        );
+      if (device.status === "moving" && spd > SPEED_LIMIT_KMH && !prev.speedAlerted) {
+        const text =
+          `⚠️ *EXCESO DE VELOCIDAD*\n` +
+          `${"─".repeat(28)}\n` +
+          `👤 *Cliente:*    ${clientName}\n` +
+          `🚘 *Vehículo:*  ${vehicleName}\n` +
+          `🔖 *Placa:*       ${plate}\n` +
+          `🚨 *Velocidad:* *${spd} km/h*  _(límite: ${SPEED_LIMIT_KMH} km/h)_\n` +
+          `🕒 *Hora:*        ${fecha}\n` +
+          `${"─".repeat(28)}\n` +
+          (mapsLink
+            ? `${mapsLink}\n_(Ubicación en tiempo real adjunta)_`
+            : `📍 _Posición GPS no disponible_`);
+        alerts.push({ text, lat: device.lat, lng: device.lng });
         snaps.set(device.id, { ...prev, speedAlerted: true });
       }
       if (spd <= SPEED_LIMIT_KMH && prev.speedAlerted) {
         snaps.set(device.id, { ...prev, speedAlerted: false });
       }
 
-      // Status change (between active states)
-      if (
-        prev.status !== device.status &&
-        !wasDisc &&
-        !isDisc &&
-        device.status !== "moving"
-      ) {
-        msgs.push(
-          buildAlertMessage(
-            `Cambio de Estado: ${stEmoji(device.status)} ${stLabel(device.status)}`,
-          ),
-        );
+      // ── Status change (between active states) ──────────────────────────
+      if (prev.status !== device.status && !wasDisc && !isDisc && device.status !== "moving") {
+        const text =
+          `${stEmoji(device.status)} *CAMBIO DE ESTADO*\n` +
+          `${"─".repeat(28)}\n` +
+          `👤 *Cliente:*   ${clientName}\n` +
+          `🚘 *Vehículo:* ${vehicleName}\n` +
+          `🔖 *Placa:*      ${plate}\n` +
+          `🔄 *Estado:*    ${stLabel(device.status)}\n` +
+          `🕒 *Hora:*       ${fecha}\n` +
+          `${"─".repeat(28)}\n` +
+          (mapsLink
+            ? `${mapsLink}\n_(Ubicación en tiempo real adjunta)_`
+            : `📍 _Posición GPS no disponible_`);
+        alerts.push({ text, lat: device.lat, lng: device.lng });
       }
 
       // Update snapshot
@@ -223,16 +250,14 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
         speedAlerted: snaps.get(device.id)?.speedAlerted ?? false,
       });
 
-      // Dispatch with delays (only if owners exist and messages to send)
-      if (msgs.length > 0 && owners && owners.length > 0) {
+      // Dispatch with debounce per device
+      if (alerts.length > 0 && owners && owners.length > 0) {
         const existing = pendingAlerts.get(device.id);
         if (existing) clearTimeout(existing);
-
         const timer = setTimeout(() => {
           pendingAlerts.delete(device.id);
-          void dispatchAlerts(bot, owners, msgs);
+          void dispatchAlerts(bot, owners, alerts);
         }, 500);
-
         pendingAlerts.set(device.id, timer);
       }
     }
