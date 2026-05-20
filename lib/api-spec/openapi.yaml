@@ -87,6 +87,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/FleetStats"
 
+  /gps/events/recent:
+    get:
+      operationId: getRecentEvents
+      tags: [gps]
+      summary: Get recent platform events
+      description: Returns up to 100 recent events from rastreoplus247, showing which were dispatched to clients via Telegram
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Recent events feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecentEvent"
+
   /gps/connection:
     get:
       operationId: getConnectionStatus
@@ -471,4 +494,43 @@ components:
         deviceName:
           type: string
         plate:
+          type: string
+
+    RecentEvent:
+      type: object
+      required:
+        - id
+        - platformEventId
+        - deviceId
+        - message
+        - time
+        - dispatched
+        - clientNames
+        - seenAt
+      properties:
+        id:
+          type: integer
+        platformEventId:
+          type: integer
+        deviceId:
+          type: string
+        deviceName:
+          type: string
+        plate:
+          type: string
+        message:
+          type: string
+        time:
+          type: string
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        dispatched:
+          type: boolean
+        clientNames:
+          type: array
+          items:
+            type: string
+        seenAt:
           type: string

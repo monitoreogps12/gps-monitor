@@ -29,8 +29,10 @@ import type {
   Device,
   ErrorResponse,
   FleetStats,
+  GetRecentEventsParams,
   HealthStatus,
   LivePosition,
+  RecentEvent,
   UpdateClientInput
 } from './api.schemas';
 
@@ -346,6 +348,91 @@ export function useGetFleetStats<TData = Awaited<ReturnType<typeof getFleetStats
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetFleetStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetRecentEventsUrl = (params?: GetRecentEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gps/events/recent?${stringifiedParams}` : `/api/gps/events/recent`
+}
+
+/**
+ * Returns up to 100 recent events from rastreoplus247, showing which were dispatched to clients via Telegram
+ * @summary Get recent platform events
+ */
+export const getRecentEvents = async (params?: GetRecentEventsParams, options?: RequestInit): Promise<RecentEvent[]> => {
+
+  return customFetch<RecentEvent[]>(getGetRecentEventsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRecentEventsQueryKey = (params?: GetRecentEventsParams,) => {
+    return [
+    `/api/gps/events/recent`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRecentEventsQueryOptions = <TData = Awaited<ReturnType<typeof getRecentEvents>>, TError = ErrorType<unknown>>(params?: GetRecentEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecentEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRecentEventsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecentEvents>>> = ({ signal }) => getRecentEvents(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecentEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRecentEventsQueryResult = NonNullable<Awaited<ReturnType<typeof getRecentEvents>>>
+export type GetRecentEventsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get recent platform events
+ */
+
+export function useGetRecentEvents<TData = Awaited<ReturnType<typeof getRecentEvents>>, TError = ErrorType<unknown>>(
+ params?: GetRecentEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecentEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRecentEventsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

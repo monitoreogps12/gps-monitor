@@ -5,11 +5,13 @@ import {
   fetchFleetStats,
   getConnectionStatus,
 } from "../lib/gps-service";
+import { getRecentEvents } from "../bots/notifications";
 import {
   ListDevicesResponse,
   GetLivePositionsResponse,
   GetFleetStatsResponse,
   GetConnectionStatusResponse,
+  GetRecentEventsResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -52,6 +54,12 @@ router.get("/gps/stats", async (req, res): Promise<void> => {
     req.log.error({ err }, "Failed to fetch fleet stats");
     res.status(503).json({ error: "Failed to get fleet statistics" });
   }
+});
+
+router.get("/gps/events/recent", (req, res): void => {
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const events = getRecentEvents(limit);
+  res.json(GetRecentEventsResponse.parse(events));
 });
 
 export default router;

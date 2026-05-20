@@ -76,6 +76,33 @@ export const GetFleetStatsResponse = zod.object({
 
 
 /**
+ * Returns up to 100 recent events from rastreoplus247, showing which were dispatched to clients via Telegram
+ * @summary Get recent platform events
+ */
+export const getRecentEventsQueryLimitDefault = 50;
+
+export const GetRecentEventsQueryParams = zod.object({
+  "limit": zod.coerce.number().default(getRecentEventsQueryLimitDefault)
+})
+
+export const GetRecentEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "platformEventId": zod.number(),
+  "deviceId": zod.string(),
+  "deviceName": zod.string().optional(),
+  "plate": zod.string().optional(),
+  "message": zod.string(),
+  "time": zod.string(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "dispatched": zod.boolean(),
+  "clientNames": zod.array(zod.string()),
+  "seenAt": zod.string()
+})
+export const GetRecentEventsResponse = zod.array(GetRecentEventsResponseItem)
+
+
+/**
  * Returns whether the backend is authenticated with rastreoplus247.com
  * @summary Get tracking platform connection status
  */

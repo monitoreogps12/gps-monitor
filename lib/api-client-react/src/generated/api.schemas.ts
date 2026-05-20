@@ -148,3 +148,24 @@ export interface AddVehicleInput {
   plate?: string;
 }
 
+export interface RecentEvent {
+  id: number;
+  platformEventId: number;
+  deviceId: string;
+  deviceName?: string;
+  plate?: string;
+  message: string;
+  time: string;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  dispatched: boolean;
+  clientNames: string[];
+  seenAt: string;
+}
+
+export type GetRecentEventsParams = {
+limit?: number;
+};
+
