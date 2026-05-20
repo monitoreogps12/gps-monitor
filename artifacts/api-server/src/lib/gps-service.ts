@@ -51,7 +51,7 @@ let lastLoginTime = 0;
 let cachedDevices: GpsDevice[] = [];
 let lastDeviceFetch = 0;
 const SESSION_TTL = 30 * 60 * 1000; // 30 minutes
-const CACHE_TTL = 10 * 1000; // 10 seconds cache for devices
+const CACHE_TTL = 5 * 60 * 1000;  // 5 min — device metadata rarely changes
 
 function parseStatus(statusHtml: string): DeviceStatus {
   const color = statusHtml.match(/background-color:\s*([^;'"]+)/i)?.[1]?.trim().toLowerCase();
