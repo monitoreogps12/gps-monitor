@@ -62,6 +62,10 @@ function durationStr(days: number | null): string {
   return `${days} días`;
 }
 
+function fechaVE() {
+  return new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" }).replace(",", "");
+}
+
 type ReplyMarkup = InlineKeyboardMarkup | ReplyKeyboardMarkup | ReplyKeyboardRemove | ForceReply;
 interface ReplyExtra { parse_mode?: ParseMode; reply_markup?: ReplyMarkup }
 
@@ -85,20 +89,111 @@ function getText(ctx: Context): string {
   return (ctx.message as { text?: string } | undefined)?.text ?? "";
 }
 
-// ─── Menus ───────────────────────────────────────────────────────────────────
+// ─── Menú principal ───────────────────────────────────────────────────────────
 
 const MAIN_MENU = Markup.keyboard([
   ["📊 Dashboard", "🚨 Alertas Críticas"],
   ["🟢 En Movimiento", "🔴 Desconectados"],
-  ["🔍 Buscar", "📋 Flota Completa"],
-  ["📨 Reporte Técnico", "⚙️ Más Opciones"],
+  ["🔍 Buscar Vehículo", "📋 Flota Completa"],
+  ["📨 Reporte Técnico", "❓ Ayuda"],
 ]).resize();
 
-const MORE_MENU = Markup.keyboard([
-  ["🟡 ACK / Encendidos", "🟠 Motor Ralentí"],
-  ["📍 Ubicación por Placa", "🗓️ Historial Reciente"],
-  ["🏠 Menú Principal"],
-]).resize();
+// ─── Shared logic ─────────────────────────────────────────────────────────────
+
+async function searchAndReply(ctx: Context, q: string) {
+  const query = q.toUpperCase().trim();
+  if (!query) {
+    await ctx.reply(
+      `🔍 *Búsqueda de Vehículos*\n\n` +
+      `Escribe directamente la placa, nombre o IMEI, o usa:\n` +
+      `/buscar TEXTO\n\n` +
+      `Ejemplos:\n` +
+      `• \`ABC-1234\`\n` +
+      `• \`/buscar TOYOTA\`\n` +
+      `• \`/estado ABC-1234\`  — ficha técnica completa`,
+      { parse_mode: "Markdown", ...MAIN_MENU }
+    );
+    return;
+  }
+
+  try {
+    const devices = await fetchDevices();
+    const results = devices.filter((d) =>
+      d.plate.toUpperCase().includes(query) ||
+      d.name.toUpperCase().includes(query) ||
+      d.imei.includes(query) ||
+      d.simNumber.includes(query)
+    );
+
+    if (results.length === 0) {
+      await ctx.reply(
+        `❌ No encontré *"${q}"* en la flota.\n\n` +
+        `Intenta con:\n• Placa completa o parcial\n• Nombre del vehículo\n• IMEI parcial`,
+        { parse_mode: "Markdown", ...MAIN_MENU }
+      );
+      return;
+    }
+
+    // Single result — show full detail directly
+    if (results.length === 1) {
+      await sendDetailCard(ctx, results[0]!);
+      return;
+    }
+
+    // Multiple results — show list
+    const lines = [`🔍 *"${q}"* — ${results.length} resultado(s)\n`];
+    results.slice(0, 12).forEach((d) => {
+      const days = daysSince(parseDate(d.lastConnection));
+      const vel = d.status === "moving" && (d.speed ?? 0) > 0 ? ` · *${d.speed} km/h*` : "";
+      lines.push(`${stEmoji(d.status)} *${d.plate || d.name}*${vel}`);
+      lines.push(`   ${stLabel(d.status)} · ${d.lastConnection}${days !== null ? ` (${durationStr(days)})` : ""}`);
+      lines.push(`   ➡️ /estado\\_${(d.plate || d.name.split(" ")[0]!).replace(/[- ]/g, "_")}`);
+      lines.push("");
+    });
+    if (results.length > 12) lines.push(`_...y ${results.length - 12} más. Refina la búsqueda._`);
+
+    await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MAIN_MENU });
+  } catch (err) {
+    logger.error({ err }, "Search error");
+    await ctx.reply("⚠️ Error al buscar. Intenta de nuevo.", MAIN_MENU);
+  }
+}
+
+async function sendDetailCard(ctx: Context, d: GpsDevice) {
+  const days = daysSince(parseDate(d.lastConnection));
+  const lines = [
+    `${stEmoji(d.status)} *${d.plate || d.name}*`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `📌 *Placa:* ${d.plate || "N/A"}`,
+    `🚘 *Nombre:* ${d.name}`,
+    `🆔 *ID Sistema:* \`${d.id}\``,
+    ``,
+    `📡 *Estado:* ${stEmoji(d.status)} ${stLabel(d.status)}`,
+    d.status === "moving" && d.speed !== null ? `🚀 *Velocidad:* *${d.speed} km/h*${(d.speed ?? 0) > 90 ? " ⚠️ EXCESO" : ""}` : "",
+    d.driver ? `👤 *Conductor:* ${d.driver}` : "",
+    ``,
+    `🔧 *IMEI:* \`${d.imei}\``,
+    `📱 *SIM:* ${d.simNumber}`,
+    d.model ? `🖥️ *Modelo:* ${d.model}` : "",
+    ``,
+    `🕐 *Última conexión:* ${d.lastConnection}`,
+    days !== null ? `⏱️ *Tiempo:* ${durationStr(days)}${days >= CRITICAL_DAYS ? " 🚨 CRÍTICO" : days === 0 ? " ✅" : ""}` : "",
+    `━━━━━━━━━━━━━━━━━━━━`,
+  ].filter(Boolean);
+
+  await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+
+  if (d.lat && d.lng) {
+    await ctx.reply(`📍 Última posición conocida — *${d.plate || d.name}*`, { parse_mode: "Markdown" });
+    await ctx.replyWithLocation(d.lat, d.lng);
+    await ctx.reply(
+      `[🗺️ Ver en Google Maps](https://maps.google.com/?q=${d.lat},${d.lng})`,
+      { parse_mode: "Markdown", ...MAIN_MENU }
+    );
+  } else {
+    await ctx.reply("📍 Posición GPS no disponible.", MAIN_MENU);
+  }
+}
 
 // ─── Bot ─────────────────────────────────────────────────────────────────────
 
@@ -110,25 +205,58 @@ export function startSupportBot(): void {
 
   const bot = new Telegraf(TOKEN);
 
-  // /start ─────────────────────────────────────────────────────────────────
+  // /start & /help ─────────────────────────────────────────────────────────
   bot.start(async (ctx: Context) => {
     const name = ctx.from?.first_name ?? "Técnico";
-    await ctx.reply(
-      `🛰️ *GPS SISTEMA C.A. — Centro de Control*\n\n` +
-      `Bienvenido, *${name}*.\n` +
-      `Tienes acceso técnico completo a la flota en tiempo real.\n\n` +
-      `*Comandos rápidos:*\n` +
-      `📊 /dashboard — Resumen ejecutivo\n` +
-      `🔍 /buscar PLACA — Localizar vehículo\n` +
-      `📍 /ubicacion PLACA — Ver en mapa\n` +
-      `📨 /reporte — Reporte técnico completo\n` +
-      `🚨 /criticos — Vehículos con +${CRITICAL_DAYS} días desconectados\n\n` +
-      `_Datos en vivo · rastreoplus247.com_`,
-      { parse_mode: "Markdown", ...MAIN_MENU }
-    );
+    try {
+      const [stats, devices] = await Promise.all([fetchFleetStats(), fetchDevices()]);
+      const critical = devices.filter((d) => isDisc(d.status) && (daysSince(parseDate(d.lastConnection)) ?? 0) >= CRITICAL_DAYS).length;
+      const speeders = devices.filter((d) => d.status === "moving" && (d.speed ?? 0) > 90).length;
+      const activos = stats.moving + stats.ack + stats.engineIdle;
+
+      const alertLine = critical > 0 || speeders > 0
+        ? `\n🚨 *Alertas:* ${critical > 0 ? `${critical} críticos` : ""}${critical > 0 && speeders > 0 ? " · " : ""}${speeders > 0 ? `${speeders} a exceso de vel.` : ""}`
+        : "\n✅ Sin alertas activas.";
+
+      await ctx.reply(
+        `🛰️ *GPS SISTEMA C.A. — Centro de Control*\n` +
+        `Bienvenido, *${name}*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `🚗 *Flota:* ${stats.total} vehículos\n` +
+        `🟢 En movimiento: *${stats.moving}*   🟡 ACK: *${stats.ack}*\n` +
+        `🟠 Ralentí: *${stats.engineIdle}*   🔴 Desconectados: *${stats.disconnected}*\n` +
+        `📶 Actividad: *${stats.total > 0 ? Math.round((activos / stats.total) * 100) : 0}%*` +
+        alertLine + `\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `💡 *Tip:* Escribe directamente una placa o nombre para buscarlo.`,
+        { parse_mode: "Markdown", ...MAIN_MENU }
+      );
+    } catch {
+      await ctx.reply(
+        `🛰️ *GPS SISTEMA C.A. — Centro de Control*\n` +
+        `Bienvenido, *${name}*. Usa el menú para navegar.\n\n` +
+        `💡 *Tip:* Escribe directamente una placa para buscarlo.`,
+        { parse_mode: "Markdown", ...MAIN_MENU }
+      );
+    }
   });
 
-  // 📊 Dashboard / /dashboard ──────────────────────────────────────────────
+  // /ping — health check rápido ─────────────────────────────────────────────
+  bot.command("ping", async (ctx: Context) => {
+    const t0 = Date.now();
+    try {
+      const stats = await fetchFleetStats();
+      const ms = Date.now() - t0;
+      await ctx.reply(
+        `✅ *Online* · ${ms}ms\n🚗 Flota: ${stats.total} · 🟢 ${stats.moving} activos · 🔴 ${stats.disconnected} desc.`,
+        { parse_mode: "Markdown", ...MAIN_MENU }
+      );
+    } catch {
+      await ctx.reply(`⚠️ Error de conexión con la plataforma.`, MAIN_MENU);
+    }
+  });
+
+  // 📊 Dashboard ─────────────────────────────────────────────────────────────
   const showDashboard = async (ctx: Context) => {
     try {
       const [stats, devices] = await Promise.all([fetchFleetStats(), fetchDevices()]);
@@ -139,47 +267,50 @@ export function startSupportBot(): void {
         return days !== null && days >= CRITICAL_DAYS;
       });
 
-      const activeRatio = stats.total > 0
-        ? Math.round(((stats.moving + stats.ack + stats.engineIdle) / stats.total) * 100)
-        : 0;
-
       const speeders = devices.filter((d) => d.status === "moving" && (d.speed ?? 0) > 90);
+      const activos = stats.moving + stats.ack + stats.engineIdle;
+      const activityPct = stats.total > 0 ? Math.round((activos / stats.total) * 100) : 0;
 
       const lines = [
         `📊 *DASHBOARD — GPS SISTEMA C.A.*`,
-        `_🕐 ${new Date().toLocaleString("es-VE")}_\n`,
+        `_🕐 ${fechaVE()}_\n`,
         `━━━━━━━━━━━━━━━━━━━━`,
         `🚗 *Flota total:* ${stats.total} vehículos`,
-        `📶 *Actividad:* ${activeRatio}%`,
+        `📶 *Actividad:* ${activityPct}%   (${activos} de ${stats.total} activos)`,
         `━━━━━━━━━━━━━━━━━━━━\n`,
         `🟢 En movimiento:   *${stats.moving}*`,
-        `🟡 ACK/Encendidos: *${stats.ack}*`,
-        `🟠 Ralentí:         *${stats.engineIdle}*`,
-        `🔴 Desconectados:  *${stats.disconnected}*\n`,
+        `🟡 ACK / Encendidos: *${stats.ack}*`,
+        `🟠 Motor en Ralentí: *${stats.engineIdle}*`,
+        `🔴 Desconectados:    *${stats.disconnected}*\n`,
         `━━━━━━━━━━━━━━━━━━━━`,
         `🚨 *Alertas activas:*`,
-        `   ⚠️ Velocidad >90 km/h: *${speeders.length}*`,
+        `   ⚡ Velocidad >90 km/h: *${speeders.length}*`,
         `   🔴 +${CRITICAL_DAYS} días sin conexión: *${critical.length}*`,
         `━━━━━━━━━━━━━━━━━━━━`,
       ];
 
       if (speeders.length > 0) {
-        lines.push(`\n🚨 *Exceso de velocidad ahora:*`);
+        lines.push(`\n⚡ *Exceso de velocidad ahora:*`);
         speeders.slice(0, 5).forEach((d) => {
-          lines.push(`   • *${d.plate || d.name}* — ${d.speed} km/h`);
+          lines.push(`   🚗 *${d.plate || d.name}* — *${d.speed} km/h*${(d.speed ?? 0) > 120 ? " 🚨🚨" : " ⚠️"}`);
+          if (d.lat && d.lng) lines.push(`   📍 [Ver ubicación](https://maps.google.com/?q=${d.lat},${d.lng})`);
         });
+        if (speeders.length > 5) lines.push(`   _...y ${speeders.length - 5} más_`);
       }
 
       if (critical.length > 0) {
-        lines.push(`\n⚠️ *Críticos más antiguos:*`);
+        lines.push(`\n🔴 *Críticos más antiguos:*`);
         critical
           .sort((a, b) => (daysSince(parseDate(b.lastConnection)) ?? 0) - (daysSince(parseDate(a.lastConnection)) ?? 0))
-          .slice(0, 3)
+          .slice(0, 4)
           .forEach((d) => {
             const days = daysSince(parseDate(d.lastConnection));
-            lines.push(`   • *${d.plate || d.name}* — ${durationStr(days)} sin conexión`);
+            lines.push(`   ${stEmoji(d.status)} *${d.plate || d.name}* — ${durationStr(days)} sin señal`);
           });
+        if (critical.length > 4) lines.push(`   _...y ${critical.length - 4} más. Usa 🚨 Alertas Críticas._`);
       }
+
+      lines.push(`\n_Actualizado: ${fechaVE()}_`);
 
       await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MAIN_MENU });
     } catch (err) {
@@ -191,8 +322,9 @@ export function startSupportBot(): void {
   bot.hears("📊 Dashboard", showDashboard);
   bot.command("dashboard", showDashboard);
   bot.command("estadisticas", showDashboard);
+  bot.command("inicio", showDashboard);
 
-  // 🚨 Alertas Críticas ────────────────────────────────────────────────────
+  // 🚨 Alertas Críticas ──────────────────────────────────────────────────────
   const showAlerts = async (ctx: Context) => {
     try {
       const devices = await fetchDevices();
@@ -206,29 +338,40 @@ export function startSupportBot(): void {
       const speeders = devices.filter((d) => d.status === "moving" && (d.speed ?? 0) > 90);
 
       if (critical.length === 0 && speeders.length === 0) {
-        await ctx.reply("✅ *Sin alertas activas.* Todos los vehículos funcionan con normalidad.", { parse_mode: "Markdown", ...MAIN_MENU });
+        await ctx.reply(
+          "✅ *Sin alertas activas.*\nTodos los vehículos operan con normalidad.",
+          { parse_mode: "Markdown", ...MAIN_MENU }
+        );
         return;
       }
 
-      const lines = [`🚨 *ALERTAS ACTIVAS — GPS SISTEMA C.A.*\n_${new Date().toLocaleString("es-VE")}_\n`];
+      const lines = [
+        `🚨 *ALERTAS ACTIVAS — GPS SISTEMA C.A.*`,
+        `_${fechaVE()}_\n`,
+      ];
 
       if (speeders.length > 0) {
-        lines.push(`⚡ *Exceso de Velocidad (${speeders.length}):*`);
+        lines.push(`⚡ *Exceso de Velocidad — ${speeders.length} vehículo(s):*`);
         speeders.forEach((d) => {
-          lines.push(`   🚗 *${d.plate || d.name}* — *${d.speed} km/h*`);
-          if (d.lat && d.lng) lines.push(`   📍 Coords: ${d.lat}, ${d.lng}`);
+          lines.push(`   🚗 *${d.plate || d.name}* — *${d.speed} km/h*${(d.speed ?? 0) > 120 ? " 🚨🚨" : " ⚠️"}`);
+          if (d.lat && d.lng) lines.push(`   📍 [Mapa](https://maps.google.com/?q=${d.lat},${d.lng})`);
+          lines.push(`   🔍 /estado\\_${(d.plate || d.name.split(" ")[0]!).replace(/[- ]/g, "_")}`);
         });
         lines.push("");
       }
 
       if (critical.length > 0) {
-        lines.push(`🔴 *Sin conexión +${CRITICAL_DAYS} días (${critical.length}):*`);
-        critical.slice(0, 20).forEach((d) => {
+        lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+        lines.push(`🔴 *Sin conexión +${CRITICAL_DAYS} días — ${critical.length} vehículo(s):*\n`);
+        critical.slice(0, 25).forEach((d) => {
           const days = daysSince(parseDate(d.lastConnection));
-          lines.push(`   ${stEmoji(d.status)} *${d.plate || d.name}* — ${durationStr(days)}`);
-          lines.push(`   IMEI: \`${d.imei}\``);
+          lines.push(`${stEmoji(d.status)} *${d.plate || d.name}*${days !== null && days >= 30 ? " 🚨" : ""}`);
+          lines.push(`   ⏱️ *${durationStr(days)}* sin conexión`);
+          lines.push(`   IMEI: \`${d.imei}\` · SIM: ${d.simNumber}`);
+          lines.push(`   🕐 Última: ${d.lastConnection}`);
+          lines.push("");
         });
-        if (critical.length > 20) lines.push(`\n   _...y ${critical.length - 20} más_`);
+        if (critical.length > 25) lines.push(`_...y ${critical.length - 25} más_`);
       }
 
       await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MAIN_MENU });
@@ -242,38 +385,41 @@ export function startSupportBot(): void {
   bot.command("alertas", showAlerts);
   bot.command("criticos", showAlerts);
 
-  // 🟢 En Movimiento ───────────────────────────────────────────────────────
+  // 🟢 En Movimiento ─────────────────────────────────────────────────────────
   const showMoving = async (ctx: Context) => {
     try {
       const devices = await fetchDevices();
       const moving = devices.filter((d) => d.status === "moving").sort((a, b) => (b.speed ?? 0) - (a.speed ?? 0));
 
       if (moving.length === 0) {
-        await ctx.reply("ℹ️ No hay vehículos en movimiento actualmente.", MAIN_MENU);
+        await ctx.reply("ℹ️ No hay vehículos en movimiento en este momento.", MAIN_MENU);
         return;
       }
 
-      const lines = [`🟢 *En Movimiento — ${moving.length} vehículos*\n_Ordenados por velocidad_\n`];
+      const lines = [`🟢 *En Movimiento — ${moving.length} vehículos*\n_Ordenados por velocidad · ${fechaVE()}_\n`];
       moving.forEach((d, i) => {
+        const sp = d.speed ?? 0;
+        const speedWarn = sp > 120 ? " 🚨🚨" : sp > 90 ? " ⚠️" : "";
         lines.push(`*${i + 1}. ${d.plate || d.name}*`);
-        lines.push(`   🚀 Velocidad: ${d.speed ?? 0} km/h${(d.speed ?? 0) > 90 ? " ⚠️" : ""}`);
-        if (d.driver) lines.push(`   👤 Conductor: ${d.driver}`);
+        lines.push(`   🚀 *${sp} km/h*${speedWarn}`);
+        if (d.driver) lines.push(`   👤 ${d.driver}`);
         lines.push(`   🕐 ${d.lastConnection}`);
-        if (d.lat && d.lng) lines.push(`   📍 [Mapa](https://maps.google.com/?q=${d.lat},${d.lng})`);
+        if (d.lat && d.lng) lines.push(`   📍 [Ver en mapa](https://maps.google.com/?q=${d.lat},${d.lng})`);
         lines.push("");
       });
 
       await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MAIN_MENU });
     } catch (err) {
       logger.error({ err }, "Moving error");
-      await ctx.reply("⚠️ Error al obtener vehículos en movimiento.", MAIN_MENU);
+      await ctx.reply("⚠️ Error al obtener datos.", MAIN_MENU);
     }
   };
 
   bot.hears("🟢 En Movimiento", showMoving);
   bot.command("movimiento", showMoving);
+  bot.command("activos", showMoving);
 
-  // 🔴 Desconectados ───────────────────────────────────────────────────────
+  // 🔴 Desconectados ─────────────────────────────────────────────────────────
   const showDisc = async (ctx: Context) => {
     try {
       const devices = await fetchDevices();
@@ -283,17 +429,22 @@ export function startSupportBot(): void {
         .sort((a, b) => (b.days ?? 0) - (a.days ?? 0));
 
       if (disc.length === 0) {
-        await ctx.reply("✅ No hay vehículos desconectados.", MAIN_MENU);
+        await ctx.reply("✅ No hay vehículos desconectados. ¡Todo en línea!", MAIN_MENU);
         return;
       }
 
-      const lines = [`🔴 *Desconectados — ${disc.length} vehículos*\n_Ordenados por días sin conexión_\n`];
+      const criticos = disc.filter((d) => (d.days ?? 0) >= CRITICAL_DAYS).length;
+      const lines = [
+        `🔴 *Desconectados — ${disc.length} vehículos*`,
+        criticos > 0 ? `🚨 *${criticos} con más de ${CRITICAL_DAYS} días sin conexión*` : "",
+        `_Ordenados por días sin conexión · ${fechaVE()}_\n`,
+      ].filter(Boolean);
+
       disc.forEach((d) => {
-        const warn = (d.days ?? 0) >= CRITICAL_DAYS ? " 🚨" : "";
-        lines.push(`${stEmoji(d.status)} *${d.plate || d.name}*${warn}`);
-        lines.push(`   ⏱️ Sin conexión: *${durationStr(d.days)}*`);
-        lines.push(`   IMEI: \`${d.imei}\``);
-        lines.push(`   SIM: ${d.simNumber}`);
+        const crit = (d.days ?? 0) >= CRITICAL_DAYS;
+        lines.push(`${stEmoji(d.status)} *${d.plate || d.name}*${crit ? " 🚨" : ""}`);
+        lines.push(`   ⏱️ *${durationStr(d.days)}* sin conexión`);
+        lines.push(`   IMEI: \`${d.imei}\` · SIM: ${d.simNumber}`);
         lines.push(`   🕐 Última: ${d.lastConnection}`);
         lines.push("");
       });
@@ -301,7 +452,7 @@ export function startSupportBot(): void {
       await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MAIN_MENU });
     } catch (err) {
       logger.error({ err }, "Disconnected error");
-      await ctx.reply("⚠️ Error al obtener desconectados.", MAIN_MENU);
+      await ctx.reply("⚠️ Error al obtener datos.", MAIN_MENU);
     }
   };
 
@@ -309,193 +460,76 @@ export function startSupportBot(): void {
   bot.command("apagados", showDisc);
   bot.command("desconectados", showDisc);
 
-  // 🟡 ACK / Encendidos ────────────────────────────────────────────────────
-  bot.hears("🟡 ACK / Encendidos", async (ctx: Context) => {
-    try {
-      const devices = await fetchDevices();
-      const ack = devices.filter((d) => d.status === "ack");
-      if (ack.length === 0) { await ctx.reply("ℹ️ No hay vehículos en estado ACK.", MORE_MENU); return; }
-      const lines = [`🟡 *ACK / Encendidos — ${ack.length} vehículos*\n`];
-      ack.forEach((d) => {
-        lines.push(`• *${d.plate || d.name}*`);
-        lines.push(`  IMEI: \`${d.imei}\`  SIM: ${d.simNumber}`);
-        lines.push(`  🕐 ${d.lastConnection}`);
-        lines.push("");
-      });
-      await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MORE_MENU });
-    } catch { await ctx.reply("⚠️ Error.", MORE_MENU); }
-  });
-
-  // 🟠 Motor Ralentí ───────────────────────────────────────────────────────
-  bot.hears("🟠 Motor Ralentí", async (ctx: Context) => {
-    try {
-      const devices = await fetchDevices();
-      const idle = devices.filter((d) => d.status === "engine_idle");
-      if (idle.length === 0) { await ctx.reply("ℹ️ No hay vehículos en ralentí.", MORE_MENU); return; }
-      const lines = [`🟠 *Motor en Ralentí — ${idle.length} vehículos*\n`];
-      idle.forEach((d) => {
-        lines.push(`• *${d.plate || d.name}*`);
-        lines.push(`  IMEI: \`${d.imei}\`  SIM: ${d.simNumber}`);
-        if (d.lat && d.lng) lines.push(`  📍 [Ver ubicación](https://maps.google.com/?q=${d.lat},${d.lng})`);
-        lines.push(`  🕐 ${d.lastConnection}`);
-        lines.push("");
-      });
-      await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MORE_MENU });
-    } catch { await ctx.reply("⚠️ Error.", MORE_MENU); }
-  });
-
-  // ⚙️ Más Opciones ───────────────────────────────────────────────────────
-  bot.hears("⚙️ Más Opciones", async (ctx: Context) => {
-    await ctx.reply("Opciones adicionales:", MORE_MENU);
-  });
-
-  bot.hears("🏠 Menú Principal", async (ctx: Context) => {
-    await ctx.reply("Menú principal:", MAIN_MENU);
-  });
-
-  // 🔍 Buscar ──────────────────────────────────────────────────────────────
-  bot.hears("🔍 Buscar", async (ctx: Context) => {
+  // 🔍 Buscar Vehículo ───────────────────────────────────────────────────────
+  bot.hears("🔍 Buscar Vehículo", async (ctx: Context) => {
     await ctx.reply(
       `🔍 *Búsqueda de Vehículos*\n\n` +
-      `Envía: /buscar TEXTO\n\n` +
-      `Búsqueda por:\n` +
-      `  • Placa (ej: /buscar ABC123)\n` +
-      `  • Nombre (ej: /buscar TOYOTA)\n` +
-      `  • IMEI parcial (ej: /buscar 86038)\n` +
-      `  • Número SIM (ej: /buscar 0414)\n\n` +
-      `Para detalle completo usa:\n` +
-      `  /estado PLACA`,
-      { parse_mode: "Markdown" }
+      `Escribe directamente lo que buscas, o usa:\n\n` +
+      `\`/buscar TEXTO\` — busca por placa, nombre o IMEI\n` +
+      `\`/estado PLACA\` — ficha técnica completa + ubicación\n\n` +
+      `_Ejemplo: \`/buscar TOYOTA\` o simplemente escribe_ \`ABC-1234\``,
+      { parse_mode: "Markdown", ...MAIN_MENU }
     );
   });
 
   bot.command("buscar", async (ctx: Context) => {
-    const q = getText(ctx).split(" ").slice(1).join(" ").trim().toUpperCase();
-    if (!q) { await ctx.reply("❌ Ejemplo: /buscar ABC123", MAIN_MENU); return; }
-
-    try {
-      const devices = await fetchDevices();
-      const results = devices.filter((d) =>
-        d.plate.toUpperCase().includes(q) ||
-        d.name.toUpperCase().includes(q) ||
-        d.imei.includes(q) ||
-        d.simNumber.includes(q)
-      );
-
-      if (results.length === 0) {
-        await ctx.reply(`❌ Sin resultados para *"${q}"*.\n\nVerifica la placa o IMEI.`, { parse_mode: "Markdown", ...MAIN_MENU });
-        return;
-      }
-
-      const lines = [`🔍 *Resultados: "${q}"* — ${results.length} encontrado(s)\n`];
-      results.slice(0, 10).forEach((d) => {
-        const days = daysSince(parseDate(d.lastConnection));
-        lines.push(`${stEmoji(d.status)} *${d.plate || d.name}*`);
-        lines.push(`   Estado: ${stLabel(d.status)}${(d.speed ?? 0) > 0 ? ` · ${d.speed} km/h` : ""}`);
-        lines.push(`   IMEI: \`${d.imei}\` · SIM: ${d.simNumber}`);
-        if (d.driver) lines.push(`   👤 ${d.driver}`);
-        lines.push(`   🕐 ${d.lastConnection}${days !== null ? ` (${durationStr(days)})` : ""}`);
-        if (d.lat && d.lng) lines.push(`   📍 [Mapa](https://maps.google.com/?q=${d.lat},${d.lng})`);
-        lines.push(`   ➡️ /estado ${d.plate || d.name.split(" ")[0]}`);
-        lines.push("");
-      });
-
-      if (results.length > 10) lines.push(`_...y ${results.length - 10} más. Refina la búsqueda._`);
-
-      await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MAIN_MENU });
-    } catch (err) {
-      logger.error({ err }, "Search error");
-      await ctx.reply("⚠️ Error al buscar.", MAIN_MENU);
-    }
+    const q = getText(ctx).split(" ").slice(1).join(" ").trim();
+    await searchAndReply(ctx, q);
   });
 
-  // /estado PLACA — Detalle técnico completo ───────────────────────────────
+  // /estado ──────────────────────────────────────────────────────────────────
   bot.command("estado", async (ctx: Context) => {
-    const q = getText(ctx).split(" ").slice(1).join(" ").trim().toUpperCase();
-    if (!q) { await ctx.reply("Uso: /estado PLACA\nEjemplo: /estado ABC123"); return; }
-
+    const q = getText(ctx).split(" ").slice(1).join(" ").trim().toUpperCase()
+      .replace(/_/g, " ").replace(/-/g, "").trim();
+    if (!q) {
+      await ctx.reply("Uso: `/estado PLACA`\nEjemplo: `/estado ABC123`", { parse_mode: "Markdown" });
+      return;
+    }
     try {
       const devices = await fetchDevices();
       const d = devices.find((dev) =>
-        dev.plate.toUpperCase().includes(q) || dev.name.toUpperCase().includes(q) || dev.id === q
+        dev.plate.toUpperCase().replace(/-/g,"").includes(q.replace(/-/g,"")) ||
+        dev.name.toUpperCase().includes(q) ||
+        dev.id === q
       );
-
       if (!d) {
-        await ctx.reply(`❌ No encontré *"${q}"* en la flota.\nUsa /buscar para una búsqueda amplia.`, { parse_mode: "Markdown" });
+        await ctx.reply(`❌ No encontré *"${q}"* en la flota.\nUsa /buscar para una búsqueda más amplia.`, { parse_mode: "Markdown", ...MAIN_MENU });
         return;
       }
-
-      const days = daysSince(parseDate(d.lastConnection));
-      const lines = [
-        `${stEmoji(d.status)} *DETALLE TÉCNICO — ${d.plate || d.name}*\n`,
-        `━━━━━━━━━━━━━━━━━━━━`,
-        `📌 *Identificación:*`,
-        `   Placa: *${d.plate || "N/A"}*`,
-        `   Nombre: ${d.name}`,
-        `   ID Sistema: \`${d.id}\``,
-        ``,
-        `📡 *Estado:*`,
-        `   ${stEmoji(d.status)} *${stLabel(d.status)}*`,
-        d.speed !== null ? `   Velocidad: *${d.speed} km/h*${(d.speed ?? 0) > 90 ? " ⚠️" : ""}` : "",
-        d.driver ? `   👤 Conductor: ${d.driver}` : "",
-        ``,
-        `🔧 *Equipo:*`,
-        `   IMEI: \`${d.imei}\``,
-        `   SIM: ${d.simNumber}`,
-        ``,
-        `🕐 *Conectividad:*`,
-        `   Última conexión: ${d.lastConnection}`,
-        days !== null ? `   Tiempo sin conexión: *${durationStr(days)}*${days >= CRITICAL_DAYS ? " 🚨" : ""}` : "",
-        `━━━━━━━━━━━━━━━━━━━━`,
-      ].filter(Boolean);
-
-      await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
-
-      if (d.lat && d.lng) {
-        await ctx.reply(`📍 Última posición conocida:`, { parse_mode: "Markdown" });
-        await ctx.replyWithLocation(d.lat, d.lng);
-      } else {
-        await ctx.reply("📍 Posición GPS no disponible.", MAIN_MENU);
-      }
+      await sendDetailCard(ctx, d);
     } catch (err) {
       logger.error({ err }, "Estado error");
-      await ctx.reply("⚠️ Error al obtener datos del vehículo.", MAIN_MENU);
+      await ctx.reply("⚠️ Error al obtener datos.", MAIN_MENU);
     }
   });
 
-  // 📍 Ubicación por Placa ─────────────────────────────────────────────────
-  bot.hears("📍 Ubicación por Placa", async (ctx: Context) => {
-    await ctx.reply(
-      "📍 Envía: /ubicacion PLACA\n\nEjemplo: /ubicacion ABC123",
-      MORE_MENU
-    );
-  });
-
+  // /ubicacion ───────────────────────────────────────────────────────────────
   bot.command("ubicacion", async (ctx: Context) => {
     const q = getText(ctx).split(" ").slice(1).join(" ").trim().toUpperCase();
-    if (!q) { await ctx.reply("Uso: /ubicacion PLACA"); return; }
-
+    if (!q) {
+      await ctx.reply("Uso: `/ubicacion PLACA`\nEjemplo: `/ubicacion ABC123`", { parse_mode: "Markdown" });
+      return;
+    }
     try {
       const devices = await fetchDevices();
       const d = devices.find((dev) =>
         dev.plate.toUpperCase().includes(q) || dev.name.toUpperCase().includes(q)
       );
-
-      if (!d) { await ctx.reply(`❌ No encontré "${q}".`); return; }
-      if (!d.lat || !d.lng) { await ctx.reply(`⚠️ *${d.plate || d.name}* no tiene posición GPS disponible.`, { parse_mode: "Markdown" }); return; }
-
-      await ctx.reply(
-        `📍 *${d.plate || d.name}* — ${stEmoji(d.status)} ${stLabel(d.status)}${d.speed ? ` · ${d.speed} km/h` : ""}`,
-        { parse_mode: "Markdown" }
-      );
+      if (!d) { await ctx.reply(`❌ No encontré *"${q}"*.`, { parse_mode: "Markdown", ...MAIN_MENU }); return; }
+      if (!d.lat || !d.lng) {
+        await ctx.reply(`⚠️ *${d.plate || d.name}* ${stEmoji(d.status)} ${stLabel(d.status)}\n\n📍 Posición GPS no disponible.`, { parse_mode: "Markdown", ...MAIN_MENU });
+        return;
+      }
+      await ctx.reply(`📍 *${d.plate || d.name}* — ${stEmoji(d.status)} ${stLabel(d.status)}${d.speed ? ` · ${d.speed} km/h` : ""}`, { parse_mode: "Markdown" });
       await ctx.replyWithLocation(d.lat, d.lng);
+      await ctx.reply(`[🗺️ Abrir en Google Maps](https://maps.google.com/?q=${d.lat},${d.lng})`, { parse_mode: "Markdown", ...MAIN_MENU });
     } catch (err) {
       logger.error({ err }, "Ubicacion error");
       await ctx.reply("⚠️ Error al obtener ubicación.", MAIN_MENU);
     }
   });
 
-  // 📋 Flota Completa ──────────────────────────────────────────────────────
+  // 📋 Flota Completa ────────────────────────────────────────────────────────
   const showAll = async (ctx: Context) => {
     try {
       const devices = await fetchDevices();
@@ -503,28 +537,38 @@ export function startSupportBot(): void {
         moving: [], ack: [], engine_idle: [], disconnected_red: [], disconnected_blue: [],
       };
       for (const d of devices) {
-        const key = groups[d.status] ? d.status : "disconnected_blue";
+        const key = d.status in groups ? d.status : "disconnected_blue";
         groups[key]!.push(d);
       }
 
       const lines = [
-        `📋 *FLOTA COMPLETA — ${devices.length} vehículos*\n`,
-        `🟢 En movimiento: *${groups["moving"]!.length}*`,
-        `🟡 ACK/Encendidos: *${groups["ack"]!.length}*`,
-        `🟠 Ralentí: *${groups["engine_idle"]!.length}*`,
-        `🔴 Sin señal: *${groups["disconnected_red"]!.length}*`,
-        `🔵 Desconectados: *${groups["disconnected_blue"]!.length}*\n`,
+        `📋 *FLOTA COMPLETA — ${devices.length} vehículos*`,
+        `_${fechaVE()}_\n`,
+        `🟢 En movimiento:   *${groups["moving"]!.length}*`,
+        `🟡 ACK/Encendidos:  *${groups["ack"]!.length}*`,
+        `🟠 Motor Ralentí:   *${groups["engine_idle"]!.length}*`,
+        `🔴 Sin señal:       *${groups["disconnected_red"]!.length}*`,
+        `🔵 Desconectados:   *${groups["disconnected_blue"]!.length}*\n`,
+        `━━━━━━━━━━━━━━━━━━━━`,
       ];
 
-      for (const [status, list] of Object.entries(groups)) {
+      const order: [string, string][] = [
+        ["moving", "🟢 En Movimiento"],
+        ["ack", "🟡 ACK / Encendidos"],
+        ["engine_idle", "🟠 Motor en Ralentí"],
+        ["disconnected_red", "🔴 Sin Señal GPS"],
+        ["disconnected_blue", "🔵 Desconectados"],
+      ];
+
+      for (const [status, label] of order) {
+        const list = groups[status]!;
         if (list.length === 0) continue;
-        lines.push(`${stEmoji(status)} *${stLabel(status)}* (${list.length}):`);
-        list.slice(0, 20).forEach((d) => {
-          const sp = status === "moving" && (d.speed ?? 0) > 0 ? ` — ${d.speed}km/h` : "";
-          lines.push(`  • *${d.plate || d.name}*${sp}`);
+        lines.push(`\n${label} (${list.length}):`);
+        list.slice(0, 25).forEach((d) => {
+          const sp = status === "moving" && (d.speed ?? 0) > 0 ? ` — ${d.speed}km/h${(d.speed ?? 0) > 90 ? "⚠️" : ""}` : "";
+          lines.push(`   • *${d.plate || d.name}*${sp}`);
         });
-        if (list.length > 20) lines.push(`  _...y ${list.length - 20} más_`);
-        lines.push("");
+        if (list.length > 25) lines.push(`   _...y ${list.length - 25} más_`);
       }
 
       await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MAIN_MENU });
@@ -536,27 +580,9 @@ export function startSupportBot(): void {
 
   bot.hears("📋 Flota Completa", showAll);
   bot.command("todos", showAll);
+  bot.command("flota", showAll);
 
-  // 🗓️ Historial Reciente ─────────────────────────────────────────────────
-  bot.hears("🗓️ Historial Reciente", async (ctx: Context) => {
-    try {
-      const devices = await fetchDevices();
-      const recent = devices
-        .filter((d) => !isDisc(d.status) || (daysSince(parseDate(d.lastConnection)) ?? 99) < 1)
-        .slice(0, 15);
-
-      if (recent.length === 0) { await ctx.reply("ℹ️ Sin actividad reciente.", MORE_MENU); return; }
-
-      const lines = [`🗓️ *Actividad Reciente*\n`];
-      recent.forEach((d) => {
-        lines.push(`${stEmoji(d.status)} *${d.plate || d.name}* — ${stLabel(d.status)}`);
-        lines.push(`   🕐 ${d.lastConnection}`);
-      });
-      await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MORE_MENU });
-    } catch { await ctx.reply("⚠️ Error.", MORE_MENU); }
-  });
-
-  // 📨 Reporte Técnico ─────────────────────────────────────────────────────
+  // 📨 Reporte Técnico ───────────────────────────────────────────────────────
   const sendReport = async (ctx: Context) => {
     try {
       await ctx.reply("⏳ *Generando reporte técnico...*", { parse_mode: "Markdown" });
@@ -569,80 +595,115 @@ export function startSupportBot(): void {
       }).sort((a, b) => (daysSince(parseDate(b.lastConnection)) ?? 0) - (daysSince(parseDate(a.lastConnection)) ?? 0));
 
       const speeders = devices.filter((d) => d.status === "moving" && (d.speed ?? 0) > 90);
-      const activeRatio = stats.total > 0
-        ? Math.round(((stats.moving + stats.ack + stats.engineIdle) / stats.total) * 100)
-        : 0;
+      const activos = stats.moving + stats.ack + stats.engineIdle;
+      const activityPct = stats.total > 0 ? Math.round((activos / stats.total) * 100) : 0;
+
+      // Group disconnected by severity
+      const disc30 = devices.filter((d) => isDisc(d.status) && (daysSince(parseDate(d.lastConnection)) ?? 0) >= 30).length;
+      const disc7 = critical.length - disc30;
 
       const lines = [
         `📊 *REPORTE TÉCNICO — GPS SISTEMA C.A.*`,
-        `📅 ${new Date().toLocaleString("es-VE")}\n`,
+        `📅 ${fechaVE()}\n`,
         `━━━━━━━━━━━━━━━━━━━━`,
         `📈 *RESUMEN EJECUTIVO*`,
         `━━━━━━━━━━━━━━━━━━━━`,
         `Total flota: *${stats.total}* vehículos`,
-        `Índice de actividad: *${activeRatio}%*\n`,
-        `🟢 En movimiento:  *${stats.moving}*`,
-        `🟡 ACK/Encendidos: *${stats.ack}*`,
-        `🟠 Motor Ralentí:  *${stats.engineIdle}*`,
-        `🔴 Desconectados:  *${stats.disconnected}*\n`,
+        `Índice de actividad: *${activityPct}%*\n`,
+        `🟢 En movimiento:    *${stats.moving}*`,
+        `🟡 ACK / Encendidos: *${stats.ack}*`,
+        `🟠 Motor en Ralentí: *${stats.engineIdle}*`,
+        `🔴 Desconectados:    *${stats.disconnected}*\n`,
         `━━━━━━━━━━━━━━━━━━━━`,
-        `🚨 *ALERTAS ACTIVAS*`,
+        `🚨 *ALERTAS*`,
         `━━━━━━━━━━━━━━━━━━━━`,
-        `⚡ Exceso de velocidad: *${speeders.length}*`,
-        `🔴 +${CRITICAL_DAYS} días sin conexión: *${critical.length}*\n`,
+        `⚡ Exceso de velocidad (>90 km/h): *${speeders.length}*`,
+        `🔴 Sin conexión ${CRITICAL_DAYS}-29 días: *${disc7}*`,
+        `🔴 Sin conexión +30 días: *${disc30}*`,
+        `🔴 Total críticos: *${critical.length}*\n`,
       ];
 
       if (speeders.length > 0) {
-        lines.push(`⚡ *Vehículos con exceso de velocidad:*`);
-        speeders.forEach((d) => lines.push(`   • *${d.plate || d.name}* — ${d.speed} km/h`));
+        lines.push(`⚡ *Vehículos en exceso de velocidad:*`);
+        speeders.forEach((d) => lines.push(`   • *${d.plate || d.name}* — *${d.speed} km/h*`));
         lines.push("");
       }
 
       if (critical.length > 0) {
-        lines.push(`🔴 *Vehículos críticos (+${CRITICAL_DAYS} días):*`);
-        critical.slice(0, 25).forEach((d) => {
+        lines.push(`🔴 *Vehículos críticos (top ${Math.min(critical.length, 20)}):*`);
+        critical.slice(0, 20).forEach((d) => {
           const days = daysSince(parseDate(d.lastConnection));
-          lines.push(`   • *${d.plate || d.name}* — ${durationStr(days)} · IMEI: ${d.imei}`);
+          lines.push(`   • *${d.plate || d.name}* — ${durationStr(days)}${days !== null && days >= 30 ? " 🚨" : ""}`);
+          lines.push(`     IMEI: \`${d.imei}\``);
         });
-        if (critical.length > 25) lines.push(`   _...y ${critical.length - 25} más_`);
+        if (critical.length > 20) lines.push(`   _...y ${critical.length - 20} más_`);
+        lines.push("");
       }
 
-      lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+      lines.push(`━━━━━━━━━━━━━━━━━━━━`);
       lines.push(`_Reporte generado automáticamente_`);
       lines.push(`_GPS SISTEMA C.A. · rastreoplus247.com_`);
 
       await sendLong(ctx, lines.join("\n"), { parse_mode: "Markdown", ...MAIN_MENU });
     } catch (err) {
       logger.error({ err }, "Report error");
-      await ctx.reply("⚠️ Error al generar reporte.", MAIN_MENU);
+      await ctx.reply("⚠️ Error al generar el reporte.", MAIN_MENU);
     }
   };
 
   bot.hears("📨 Reporte Técnico", sendReport);
   bot.command("reporte", sendReport);
 
-  // ❓ Ayuda ────────────────────────────────────────────────────────────────
-  bot.command("ayuda", async (ctx: Context) => {
+  // ❓ Ayuda ─────────────────────────────────────────────────────────────────
+  const showHelp = async (ctx: Context) => {
     await ctx.reply(
-      `🛰️ *GPS SISTEMA C.A. — Comandos Técnicos*\n\n` +
-      `*Dashboard y Reportes:*\n` +
-      `/dashboard — Resumen ejecutivo en tiempo real\n` +
+      `🛰️ *GPS SISTEMA C.A. — Guía de Comandos*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `*📊 Monitoreo General*\n` +
+      `/dashboard — Resumen ejecutivo con alertas\n` +
       `/reporte — Reporte técnico completo\n` +
-      `/alertas — Alertas activas (velocidad + críticos)\n\n` +
-      `*Estado de Flota:*\n` +
+      `/alertas — Alertas activas (velocidad + críticos)\n` +
+      `/ping — Verificar conexión con la plataforma\n\n` +
+      `*🚗 Estado de Flota*\n` +
       `/movimiento — Vehículos en movimiento\n` +
-      `/apagados — Vehículos desconectados\n` +
-      `/todos — Flota completa por grupo\n\n` +
-      `*Vehículo específico:*\n` +
-      `/buscar TEXTO — Buscar por placa/IMEI/nombre\n` +
-      `/estado PLACA — Ficha técnica completa\n` +
-      `/ubicacion PLACA — Ver posición en mapa\n\n` +
+      `/desconectados — Vehículos sin señal\n` +
+      `/flota — Toda la flota agrupada por estado\n\n` +
+      `*🔍 Vehículo específico*\n` +
+      `/buscar TEXTO — Por placa, nombre o IMEI\n` +
+      `/estado PLACA — Ficha técnica + ubicación\n` +
+      `/ubicacion PLACA — Solo la posición en mapa\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `💡 *Tip rápido:* Escribe directamente una placa o nombre y el bot la buscará automáticamente.\n\n` +
       `_Datos en vivo · rastreoplus247.com_`,
       { parse_mode: "Markdown", ...MAIN_MENU }
     );
+  };
+
+  bot.hears("❓ Ayuda", showHelp);
+  bot.command("ayuda", showHelp);
+  bot.command("help", showHelp);
+
+  // ─── Catch-all inteligente ────────────────────────────────────────────────
+  // Si el usuario escribe texto que no es un comando ni un botón,
+  // se trata como una búsqueda de vehículo directa.
+  bot.on("text", async (ctx: Context) => {
+    const text = getText(ctx).trim();
+    // Ignore commands (already handled above)
+    if (text.startsWith("/")) return;
+
+    // Try to detect if it looks like a plate / name search
+    if (text.length >= 3) {
+      await ctx.reply(`🔍 Buscando _"${text}"_ en la flota...`, { parse_mode: "Markdown" });
+      await searchAndReply(ctx, text);
+    } else {
+      await ctx.reply(
+        "No entendí ese mensaje.\n\nEscribe una *placa*, *nombre* o *IMEI* para buscarlo, o usa el menú.",
+        { parse_mode: "Markdown", ...MAIN_MENU }
+      );
+    }
   });
 
-  // Launch ─────────────────────────────────────────────────────────────────
+  // ─── Launch ───────────────────────────────────────────────────────────────
   bot.launch({ dropPendingUpdates: true })
     .then(() => logger.info("Support Telegram bot started"))
     .catch((err: unknown) => logger.error({ err }, "Failed to start support bot"));
