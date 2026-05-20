@@ -55,6 +55,8 @@ import {
   MapPin,
   Navigation,
   Zap,
+  Bell,
+  ClockAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusColor, getStatusLabel } from "@/lib/status-colors";
@@ -549,9 +551,10 @@ export function Clientes() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [pendingPicker, setPendingPicker] = useState<{ clientId: number } | null>(null);
 
   const { data: clients = [], isLoading } = useListClients({
-    query: { refetchInterval: 30000, queryKey: getListClientsQueryKey() },
+    query: { refetchInterval: 5000, queryKey: getListClientsQueryKey() },
   });
 
   const { data: livePositions = [] } = useGetLivePositions({
@@ -585,6 +588,21 @@ export function Clientes() {
   const totalVehicles = clients.reduce((s, c) => s + (c.vehicles?.length ?? 0), 0);
   const activeCount = clients.filter((c) => c.isActive).length;
 
+  // Clientes sin vehículos — necesitan asignación (ordenados por más reciente)
+  const pendingClients = clients
+    .filter((c) => (c.vehicles?.length ?? 0) === 0 && c.isActive)
+    .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
+
+  function timeAgo(iso: string) {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "hace un momento";
+    if (m < 60) return `hace ${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `hace ${h}h`;
+    return `hace ${Math.floor(h / 24)}d`;
+  }
+
   return (
     <div className="space-y-5 flex flex-col h-[calc(100vh-100px)]">
       {/* Header */}
@@ -613,6 +631,54 @@ export function Clientes() {
           </div>
         ))}
       </div>
+
+      {/* ── Pendientes de asignar ── */}
+      {pendingClients.length > 0 && (
+        <div className="shrink-0 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Bell className="w-4 h-4 text-amber-500" />
+            <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+              {pendingClients.length} cliente{pendingClients.length > 1 ? "s" : ""} sin vehículos asignados
+            </span>
+            <span className="ml-auto text-xs text-amber-500/60">Actualización cada 5s</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {pendingClients.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center gap-3 rounded-lg bg-card border border-border px-3 py-2.5 shadow-sm"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm text-foreground truncate">{c.name}</span>
+                    {c.telegramId && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-500 bg-sky-500/10 border border-sky-500/20 rounded-full px-1.5 py-0.5">
+                        <MessageCircle className="w-2.5 h-2.5" />
+                        Telegram
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-muted-foreground">{c.phone}</span>
+                    <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
+                      <ClockAlert className="w-2.5 h-2.5" />
+                      {timeAgo(c.registeredAt)}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="text-xs gap-1.5 shrink-0 h-7 px-2.5"
+                  onClick={() => setPendingPicker({ clientId: c.id })}
+                >
+                  <Car className="w-3 h-3" />
+                  Asignar
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 shrink-0">
@@ -653,6 +719,21 @@ export function Clientes() {
       </div>
 
       <CreateClientDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      {/* Picker de vehículos para clientes pendientes */}
+      {pendingPicker && (
+        <VehiclePicker
+          open={true}
+          onClose={() => {
+            setPendingPicker(null);
+            // Refresca la lista para que el cliente asignado salga de pendientes
+          }}
+          clientId={pendingPicker.clientId}
+          assignedDeviceIds={
+            clients.find((c) => c.id === pendingPicker.clientId)?.vehicles?.map((v) => v.deviceId) ?? []
+          }
+        />
+      )}
     </div>
   );
 }
