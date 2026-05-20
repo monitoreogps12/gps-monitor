@@ -49,4 +49,9 @@ export interface LivePosition {
      * @nullable
      */
   batteryLevel?: string | null;
+  /**
+     * GSM signal strength percentage (0-100). Only available for devices with gsm sensor type.
+     * @nullable
+     */
+  gsmSignal?: number | null;
 }

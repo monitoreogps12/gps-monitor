@@ -475,6 +475,9 @@ components:
         batteryLevel:
           type: ["string", "null"]
           description: Battery level from sensor (e.g. "100 %")
+        gsmSignal:
+          type: ["number", "null"]
+          description: GSM signal strength percentage (0-100). Only available for devices with gsm sensor type.
 
     FleetStats:
       type: object

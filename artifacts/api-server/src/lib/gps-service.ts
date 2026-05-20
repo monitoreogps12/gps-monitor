@@ -51,6 +51,7 @@ export interface LivePosition {
   stopDurationSec: number | null;
   engineHours: string | null;
   batteryLevel: string | null;
+  gsmSignal: number | null;
 }
 
 export interface DeviceSensor {
@@ -340,6 +341,12 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
         const sensors = sensorCache.get(id) ?? [];
         const engineHoursSensor = sensors.find((s) => s.type === "engine_hours");
         const batterySensor = sensors.find((s) => s.type === "battery");
+        const gsmSensor = sensors.find((s) => s.type === "gsm");
+        const gsmRaw = gsmSensor?.val;
+        const gsmSignal =
+          gsmRaw != null && gsmRaw !== "-" && !isNaN(parseFloat(String(gsmRaw)))
+            ? parseFloat(String(gsmRaw))
+            : null;
 
         updatesById.set(id, {
           id,
@@ -363,6 +370,7 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
           stopDurationSec: d.stop_duration_sec != null ? parseFloat(String(d.stop_duration_sec)) : null,
           engineHours: engineHoursSensor?.value ?? null,
           batteryLevel: batterySensor?.value ?? null,
+          gsmSignal,
         });
       }
 

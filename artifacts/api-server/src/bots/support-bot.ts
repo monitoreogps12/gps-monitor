@@ -10,6 +10,27 @@ import { logger } from "../lib/logger";
 const TOKEN = process.env["TELEGRAM_SUPPORT_BOT_TOKEN"] ?? "";
 const CRITICAL_DAYS = 7;
 
+// ─── Proactive alert interface ─────────────────────────────────────────────
+// Allows other modules to send alerts via the support bot to admin operators.
+const ADMIN_CHAT_IDS: string[] = (process.env["TELEGRAM_SUPPORT_ADMIN_CHAT_IDS"] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+
+let _supportBot: import("telegraf").Telegraf | null = null;
+
+/**
+ * Sends a message to all configured admin chat IDs via the support bot.
+ * Used for proactive system alerts (e.g. low GSM signal).
+ */
+export async function sendSupportBotAlert(text: string): Promise<void> {
+  if (!_supportBot || ADMIN_CHAT_IDS.length === 0) return;
+  for (const chatId of ADMIN_CHAT_IDS) {
+    try {
+      await _supportBot.telegram.sendMessage(chatId, text, { parse_mode: "Markdown" });
+    } catch (err) {
+      logger.warn({ err, chatId }, "Failed to send support bot alert");
+    }
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function stEmoji(s: string) {
@@ -204,6 +225,7 @@ export function startSupportBot(): void {
   }
 
   const bot = new Telegraf(TOKEN);
+  _supportBot = bot;
 
   // /start & /help ─────────────────────────────────────────────────────────
   bot.start(async (ctx: Context) => {

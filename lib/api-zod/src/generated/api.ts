@@ -63,7 +63,8 @@ export const GetLivePositionsResponseItem = zod.object({
   "totalDistance": zod.number().nullish(),
   "stopDurationSec": zod.number().nullish(),
   "engineHours": zod.string().nullish().describe('Engine hours from sensor (e.g. \"1221.4 h\")'),
-  "batteryLevel": zod.string().nullish().describe('Battery level from sensor (e.g. \"100 %\")')
+  "batteryLevel": zod.string().nullish().describe('Battery level from sensor (e.g. \"100 %\")'),
+  "gsmSignal": zod.number().nullish().describe('GSM signal strength percentage (0-100). Only available for devices with gsm sensor type.')
 })
 export const GetLivePositionsResponse = zod.array(GetLivePositionsResponseItem)
 

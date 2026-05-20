@@ -160,6 +160,13 @@ export function Mapa() {
         const bColor = bv >= 70 ? '#22c55e' : bv >= 30 ? '#eab308' : '#ef4444';
         sensorRows.push(['Batería', `<b style="color:${bColor}">${pos.batteryLevel}</b>`]);
       }
+      if (pos.gsmSignal !== null && pos.gsmSignal !== undefined) {
+        const gsm = pos.gsmSignal;
+        const gsmColor = gsm >= 70 ? '#22c55e' : gsm >= 40 ? '#eab308' : '#ef4444';
+        const gsmBars = gsm >= 75 ? '▂▄▆█' : gsm >= 50 ? '▂▄▆░' : gsm >= 25 ? '▂▄░░' : '▂░░░';
+        const gsmWarn = gsm < 40 ? ' ⚠️' : '';
+        sensorRows.push(['GSM', `<b style="color:${gsmColor}">${gsmBars} ${Math.round(gsm)}%${gsmWarn}</b>`]);
+      }
 
       const popup = `
         <div style="font-family:'Inter',sans-serif;min-width:250px;max-width:290px">

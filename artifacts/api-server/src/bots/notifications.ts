@@ -2,7 +2,8 @@ import { Telegraf } from "telegraf";
 import { db } from "@workspace/db";
 import { clientsTable, clientVehiclesTable } from "@workspace/db";
 import { isNotNull } from "drizzle-orm";
-import { fetchPlatformEvents, fetchDevices } from "../lib/gps-service";
+import { fetchPlatformEvents, fetchDevices, fetchLivePositions } from "../lib/gps-service";
+import { sendSupportBotAlert } from "./support-bot";
 import { logger } from "../lib/logger";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -209,4 +210,66 @@ export function startNotificationService(bot: Telegraf): void {
     await pollAndNotify(bot);
     schedule();
   }, 3_000);
+
+  // Start GSM signal monitor (runs every 5 minutes)
+  startGsmMonitor();
+}
+
+// ── GSM Signal Monitor ───────────────────────────────────────────────────────
+const GSM_THRESHOLD = 40;
+const GSM_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const GSM_COOLDOWN_MS = 30 * 60 * 1000;     // 30 minutes per device
+
+/** deviceId → timestamp of last GSM alert sent */
+const gsmAlertCooldown = new Map<string, number>();
+
+async function checkGsmSignals(): Promise<void> {
+  try {
+    const positions = await fetchLivePositions();
+    const lowGsm = positions.filter(
+      (p) => p.gsmSignal !== null && p.gsmSignal < GSM_THRESHOLD
+    );
+
+    if (lowGsm.length === 0) return;
+
+    const now = Date.now();
+    const toAlert = lowGsm.filter((p) => {
+      const last = gsmAlertCooldown.get(p.id) ?? 0;
+      return now - last > GSM_COOLDOWN_MS;
+    });
+
+    if (toAlert.length === 0) return;
+
+    const lines = toAlert.map((p) => {
+      const signal = p.gsmSignal!;
+      const emoji = signal === 0 ? "🔴" : signal < 20 ? "🔴" : "🟠";
+      const name = p.name || p.id;
+      const plate = p.plate && p.plate !== p.name ? ` (${p.plate})` : "";
+      return `${emoji} *${name}*${plate} — GSM: *${Math.round(signal)}%*`;
+    });
+
+    const text =
+      `📡 *ALERTA — SEÑAL GSM BAJA*\n\n` +
+      `${lines.join("\n")}\n\n` +
+      `⚠️ ${toAlert.length} vehículo${toAlert.length > 1 ? "s" : ""} con señal GSM por debajo del ${GSM_THRESHOLD}%.\n` +
+      `🕒 ${new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" })}`;
+
+    await sendSupportBotAlert(text);
+
+    for (const p of toAlert) {
+      gsmAlertCooldown.set(p.id, now);
+    }
+
+    logger.info({ count: toAlert.length, threshold: GSM_THRESHOLD }, "GSM alert sent");
+  } catch (err) {
+    logger.error({ err }, "GSM signal check failed");
+  }
+}
+
+function startGsmMonitor(): void {
+  // First check after 2 minutes (sensor cache needs time to populate)
+  setTimeout(() => {
+    void checkGsmSignals();
+    setInterval(() => { void checkGsmSignals(); }, GSM_POLL_INTERVAL_MS);
+  }, 2 * 60 * 1000);
 }
