@@ -7,11 +7,14 @@ import {
   useAddClientVehicle,
   useRemoveClientVehicle,
   useListDevices,
+  useGetLivePositions,
   getListClientsQueryKey,
   getListDevicesQueryKey,
+  getGetLivePositionsQueryKey,
   type ClientWithVehicles,
   type CreateClientInput,
   type Device,
+  type LivePosition,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -49,9 +52,12 @@ import {
   UserX,
   X,
   CheckCircle2,
+  MapPin,
+  Navigation,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getStatusColor } from "@/lib/status-colors";
+import { getStatusColor, getStatusLabel } from "@/lib/status-colors";
 
 // ------- Vehicle Picker Dialog -------
 function VehiclePicker({
@@ -198,30 +204,83 @@ function VehiclePicker({
 // ------- Vehicle Row -------
 function VehicleRow({
   vehicle,
+  livePos,
   onRemove,
 }: {
   vehicle: { deviceId: string; deviceName: string; plate: string };
+  livePos?: LivePosition;
   onRemove: () => void;
 }) {
+  const statusColor = livePos ? getStatusColor(livePos.status) : "#64748b";
+  const statusLabel = livePos ? getStatusLabel(livePos.status) : "Sin datos";
+  const plate = vehicle.plate || livePos?.plate || vehicle.deviceName || vehicle.deviceId;
+  const name = vehicle.deviceName || livePos?.name || vehicle.deviceId;
+  const hasLocation = livePos?.lat && livePos?.lng;
+  const mapsUrl = hasLocation ? `https://www.google.com/maps?q=${livePos!.lat},${livePos!.lng}` : null;
+
   return (
-    <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-muted/40 border border-border group">
-      <div className="flex items-center gap-3 text-sm min-w-0">
-        <Car className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-        <span className="font-semibold text-foreground truncate">
-          {vehicle.plate || vehicle.deviceName || vehicle.deviceId}
-        </span>
-        {vehicle.deviceName && vehicle.deviceName !== vehicle.plate && (
-          <span className="text-xs text-muted-foreground truncate hidden sm:block">{vehicle.deviceName}</span>
-        )}
-        <span className="text-xs text-muted-foreground flex-shrink-0">ID: {vehicle.deviceId}</span>
+    <div className="rounded-lg border border-border bg-card/60 overflow-hidden group">
+      {/* Color bar top */}
+      <div className="h-0.5 w-full" style={{ background: statusColor }} />
+
+      <div className="flex items-start gap-3 px-3 py-2.5">
+        {/* Status dot */}
+        <div
+          className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1"
+          style={{ background: statusColor, boxShadow: `0 0 6px ${statusColor}88` }}
+        />
+
+        {/* Main info */}
+        <div className="flex-1 min-w-0 space-y-1">
+          {/* Placa + nombre */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-sm text-foreground">{plate}</span>
+            {name !== plate && (
+              <span className="text-xs text-muted-foreground truncate">{name}</span>
+            )}
+          </div>
+
+          {/* Estado + velocidad */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-medium" style={{ color: statusColor }}>
+              {statusLabel}
+              {livePos?.status === "moving" && livePos.speed ? ` · ${livePos.speed} km/h` : ""}
+            </span>
+            {livePos?.lastConnection && (
+              <span className="text-xs text-muted-foreground">
+                Última conexión: {new Date(livePos.lastConnection).toLocaleString("es-VE")}
+              </span>
+            )}
+          </div>
+
+          {/* Ubicación */}
+          {hasLocation ? (
+            <a
+              href={mapsUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-400 transition-colors font-medium"
+            >
+              <MapPin className="w-3 h-3" />
+              Ver ubicación en Google Maps
+            </a>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/60">
+              <MapPin className="w-3 h-3" />
+              Sin señal GPS
+            </span>
+          )}
+        </div>
+
+        {/* Remove button */}
+        <button
+          onClick={onRemove}
+          className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity p-1 flex-shrink-0"
+          title="Quitar vehículo"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
-      <button
-        onClick={onRemove}
-        className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity p-1 flex-shrink-0"
-        title="Quitar vehículo"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
     </div>
   );
 }
@@ -347,7 +406,7 @@ function CreateClientDialog({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 // ------- Client Row -------
-function ClientRow({ client }: { client: ClientWithVehicles }) {
+function ClientRow({ client, liveMap }: { client: ClientWithVehicles; liveMap: Map<string, LivePosition> }) {
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -441,6 +500,7 @@ function ClientRow({ client }: { client: ClientWithVehicles }) {
               <VehicleRow
                 key={v.deviceId}
                 vehicle={v}
+                livePos={liveMap.get(v.deviceId)}
                 onRemove={() => removeVehicle.mutate({ id: client.id, deviceId: v.deviceId })}
               />
             ))}
@@ -493,6 +553,16 @@ export function Clientes() {
   const { data: clients = [], isLoading } = useListClients({
     query: { refetchInterval: 30000, queryKey: getListClientsQueryKey() },
   });
+
+  const { data: livePositions = [] } = useGetLivePositions({
+    query: { refetchInterval: 10000, queryKey: getGetLivePositionsQueryKey(), staleTime: 8000 },
+  });
+
+  const liveMap = useMemo(() => {
+    const m = new Map<string, LivePosition>();
+    for (const p of livePositions) m.set(p.id, p);
+    return m;
+  }, [livePositions]);
 
   const filtered = clients.filter((c) => {
     const q = search.toLowerCase();
@@ -578,7 +648,7 @@ export function Clientes() {
             {search ? "No se encontraron clientes con ese criterio." : "No hay clientes registrados."}
           </div>
         ) : (
-          filtered.map((c) => <ClientRow key={c.id} client={c} />)
+          filtered.map((c) => <ClientRow key={c.id} client={c} liveMap={liveMap} />)
         )}
       </div>
 
