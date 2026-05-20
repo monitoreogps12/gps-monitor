@@ -44,6 +44,8 @@ export interface LivePosition {
   simNumber: string | null;
   model: string | null;
   driver: string | null;
+  /** Zona/geocerca actual reportada por la plataforma (null = sin zona) */
+  zone: string | null;
 }
 
 let sessionCookies: string[] = [];
@@ -297,6 +299,12 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
         const engineStatus = Boolean(d.engine_status);
         // Cross-reference with device cache for IMEI / SIM / model
         const dev = cachedDevices.find((dev) => dev.id === id);
+        // Extraer nombre de geocerca — la plataforma puede exponerlo en
+        // varios campos según la versión: zone_name, zone, zones, geofence
+        const rawZone =
+          d.zone_name ?? d.zone ?? d.geofence ?? d.geofence_name ?? null;
+        const zoneName = rawZone ? String(rawZone).trim() || null : null;
+
         updatesById.set(id, {
           id,
           name: String(d.name || ""),
@@ -312,6 +320,7 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
           simNumber: dev?.simNumber ?? null,
           model: dev?.model ?? null,
           driver: dev?.driver ?? null,
+          zone: zoneName,
         });
       }
 

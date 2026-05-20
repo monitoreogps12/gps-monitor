@@ -12,6 +12,7 @@ interface Snap {
   status: string;
   speed: number | null;
   speedAlerted: boolean;
+  zone: string | null;
 }
 
 const snaps = new Map<string, Snap>();
@@ -131,6 +132,7 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
           status: device.status,
           speed: device.speed,
           speedAlerted: false,
+          zone: device.zone,
         });
         continue;
       }
@@ -163,6 +165,25 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
         snaps.set(device.id, { ...prev, speedAlerted: false });
       }
 
+      // ── Geocerca: entrada / salida ─────────────────────────────────────
+      const prevZone = prev.zone ?? null;
+      const currZone = device.zone ?? null;
+      if (currZone !== prevZone) {
+        if (currZone && !prevZone) {
+          // Entró a una zona
+          alerts.push(buildAlert(clientName, vehicleName, plate,
+            `Entrada a geocerca: *${currZone}* 📍`, device.lat, device.lng));
+        } else if (!currZone && prevZone) {
+          // Salió de una zona
+          alerts.push(buildAlert(clientName, vehicleName, plate,
+            `Salida de geocerca: *${prevZone}* 🚧`, device.lat, device.lng));
+        } else if (currZone && prevZone) {
+          // Cambió de zona
+          alerts.push(buildAlert(clientName, vehicleName, plate,
+            `Cambio de geocerca: *${prevZone}* → *${currZone}* 📍`, device.lat, device.lng));
+        }
+      }
+
       // Motor Ralentí, ACK y otros estados intermedios → sin alerta
 
       // Actualizar snapshot
@@ -170,6 +191,7 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
         status: device.status,
         speed: device.speed,
         speedAlerted: snaps.get(device.id)?.speedAlerted ?? false,
+        zone: device.zone ?? null,
       });
 
       if (alerts.length > 0 && owners && owners.length > 0) {
