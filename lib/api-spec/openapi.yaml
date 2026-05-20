@@ -257,6 +257,54 @@ paths:
         "204":
           description: Vehicle removed
 
+  /clients/{id}/notify-assignment:
+    post:
+      operationId: notifyClientAssignment
+      tags: [clients]
+      summary: Send Telegram notification to client about their assigned vehicles
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotifyAssignmentResult"
+        "404":
+          description: Client not found
+
+  /clients/{id}/link-telegram:
+    post:
+      operationId: linkClientTelegram
+      tags: [clients]
+      summary: Manually link a Telegram ID to a client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkTelegramInput"
+      responses:
+        "200":
+          description: Client updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+        "404":
+          description: Client not found
+
 components:
   schemas:
     HealthStatus:
@@ -494,6 +542,26 @@ components:
         deviceName:
           type: string
         plate:
+          type: string
+
+    NotifyAssignmentResult:
+      type: object
+      required:
+        - sent
+      properties:
+        sent:
+          type: boolean
+        reason:
+          type: string
+
+    LinkTelegramInput:
+      type: object
+      required:
+        - telegramId
+      properties:
+        telegramId:
+          type: string
+        telegramUsername:
           type: string
 
     RecentEvent:

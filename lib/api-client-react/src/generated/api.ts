@@ -31,7 +31,9 @@ import type {
   FleetStats,
   GetRecentEventsParams,
   HealthStatus,
+  LinkTelegramInput,
   LivePosition,
+  NotifyAssignmentResult,
   RecentEvent,
   UpdateClientInput
 } from './api.schemas';
@@ -1002,5 +1004,147 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRemoveClientVehicleMutationOptions(options));
+    }
+
+export const getNotifyClientAssignmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/clients/${id}/notify-assignment`
+}
+
+/**
+ * @summary Send Telegram notification to client about their assigned vehicles
+ */
+export const notifyClientAssignment = async (id: number, options?: RequestInit): Promise<NotifyAssignmentResult> => {
+
+  return customFetch<NotifyAssignmentResult>(getNotifyClientAssignmentUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getNotifyClientAssignmentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notifyClientAssignment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof notifyClientAssignment>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['notifyClientAssignment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof notifyClientAssignment>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  notifyClientAssignment(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type NotifyClientAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof notifyClientAssignment>>>
+
+    export type NotifyClientAssignmentMutationError = ErrorType<void>
+
+    /**
+ * @summary Send Telegram notification to client about their assigned vehicles
+ */
+export const useNotifyClientAssignment = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notifyClientAssignment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof notifyClientAssignment>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getNotifyClientAssignmentMutationOptions(options));
+    }
+
+export const getLinkClientTelegramUrl = (id: number,) => {
+
+
+
+
+  return `/api/clients/${id}/link-telegram`
+}
+
+/**
+ * @summary Manually link a Telegram ID to a client
+ */
+export const linkClientTelegram = async (id: number,
+    linkTelegramInput: LinkTelegramInput, options?: RequestInit): Promise<Client> => {
+
+  return customFetch<Client>(getLinkClientTelegramUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      linkTelegramInput,)
+  }
+);}
+
+
+
+
+export const getLinkClientTelegramMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkClientTelegram>>, TError,{id: number;data: BodyType<LinkTelegramInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkClientTelegram>>, TError,{id: number;data: BodyType<LinkTelegramInput>}, TContext> => {
+
+const mutationKey = ['linkClientTelegram'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkClientTelegram>>, {id: number;data: BodyType<LinkTelegramInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  linkClientTelegram(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkClientTelegramMutationResult = NonNullable<Awaited<ReturnType<typeof linkClientTelegram>>>
+    export type LinkClientTelegramMutationBody = BodyType<LinkTelegramInput>
+    export type LinkClientTelegramMutationError = ErrorType<void>
+
+    /**
+ * @summary Manually link a Telegram ID to a client
+ */
+export const useLinkClientTelegram = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkClientTelegram>>, TError,{id: number;data: BodyType<LinkTelegramInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkClientTelegram>>,
+        TError,
+        {id: number;data: BodyType<LinkTelegramInput>},
+        TContext
+      > => {
+      return useMutation(getLinkClientTelegramMutationOptions(options));
     }
 

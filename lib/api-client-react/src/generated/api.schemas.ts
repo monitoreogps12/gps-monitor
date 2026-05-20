@@ -148,6 +148,16 @@ export interface AddVehicleInput {
   plate?: string;
 }
 
+export interface NotifyAssignmentResult {
+  sent: boolean;
+  reason?: string;
+}
+
+export interface LinkTelegramInput {
+  telegramId: string;
+  telegramUsername?: string;
+}
+
 export interface RecentEvent {
   id: number;
   platformEventId: number;

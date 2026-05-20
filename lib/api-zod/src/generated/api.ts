@@ -226,3 +226,41 @@ export const RemoveClientVehicleParams = zod.object({
 })
 
 
+/**
+ * @summary Send Telegram notification to client about their assigned vehicles
+ */
+export const NotifyClientAssignmentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const NotifyClientAssignmentResponse = zod.object({
+  "sent": zod.boolean(),
+  "reason": zod.string().optional()
+})
+
+
+/**
+ * @summary Manually link a Telegram ID to a client
+ */
+export const LinkClientTelegramParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const LinkClientTelegramBody = zod.object({
+  "telegramId": zod.string(),
+  "telegramUsername": zod.string().optional()
+})
+
+export const LinkClientTelegramResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "telegramId": zod.string().nullish(),
+  "telegramUsername": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "registeredAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+

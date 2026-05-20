@@ -6,6 +6,7 @@ import {
   useDeleteClient,
   useAddClientVehicle,
   useRemoveClientVehicle,
+  useNotifyClientAssignment,
   useListDevices,
   useGetLivePositions,
   getListClientsQueryKey,
@@ -74,6 +75,7 @@ function VehiclePicker({
   assignedDeviceIds: string[];
 }) {
   const [search, setSearch] = useState("");
+  const [didAddVehicles, setDidAddVehicles] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -92,10 +94,13 @@ function VehiclePicker({
     );
   }, [devices, search]);
 
+  const notify = useNotifyClientAssignment();
+
   const addVehicle = useAddClientVehicle({
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListClientsQueryKey() });
+        setDidAddVehicles(true);
         toast({ title: "Vehículo asignado" });
       },
       onError: () => toast({ title: "Error al asignar vehículo", variant: "destructive" }),
@@ -124,8 +129,27 @@ function VehiclePicker({
     }
   };
 
+  const handleClose = () => {
+    if (didAddVehicles && assignedDeviceIds.length > 0) {
+      notify.mutate(
+        { id: clientId },
+        {
+          onSuccess: (data) => {
+            if (data.sent) {
+              toast({ title: "✅ Notificación enviada", description: "El cliente recibió la lista de sus vehículos por Telegram." });
+            }
+            onClose();
+          },
+          onError: () => onClose(),
+        }
+      );
+    } else {
+      onClose();
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Asignar Vehículos</DialogTitle>
@@ -194,8 +218,13 @@ function VehiclePicker({
 
         <div className="border-t pt-3 flex items-center justify-between text-sm text-muted-foreground">
           <span>{assignedDeviceIds.length} vehículo(s) asignado(s)</span>
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Listo
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClose}
+            disabled={notify.isPending}
+          >
+            {notify.isPending ? "Enviando…" : "Listo"}
           </Button>
         </div>
       </DialogContent>
