@@ -2,65 +2,19 @@ import { Telegraf } from "telegraf";
 import { db } from "@workspace/db";
 import { clientsTable, clientVehiclesTable } from "@workspace/db";
 import { isNotNull } from "drizzle-orm";
-import { fetchLivePositions, fetchDevices } from "../lib/gps-service";
+import { fetchPlatformEvents, fetchDevices } from "../lib/gps-service";
 import { logger } from "../lib/logger";
 
-const SPEED_LIMIT_KMH = 90;
-const POLL_INTERVAL_MS = 2_000;
+const POLL_INTERVAL_MS = 5_000; // /events es HTML pesado — 5s es razonable
 
-interface Snap {
-  status: string;
-  speed: number | null;
-  speedAlerted: boolean;
-  zone: string | null;
-}
-
-const snaps = new Map<string, Snap>();
-const pendingAlerts = new Map<string, NodeJS.Timeout>();
+let lastEventId = 0;
 let polling = false;
 
-function isDisconnected(status: string) {
-  return status === "disconnected_blue" || status === "disconnected_red";
-}
-
-function getFecha(): string {
+function getFecha(platformTime?: string): string {
+  if (platformTime) return platformTime;
   return new Date()
     .toLocaleString("es-VE", { timeZone: "America/Caracas" })
     .replace(",", "");
-}
-
-interface Alert {
-  text: string;
-  lat?: number | null;
-  lng?: number | null;
-}
-
-// Formato exacto del diseño aprobado:
-// 🔔 AVISO DE MONITOREO
-// 👤 Cliente / 🚗 Vehículo / 🔖 Placa / ⚠️ Evento / 🕒 Fecha / 📍 Ubicación
-function buildAlert(
-  clientName: string,
-  vehicleName: string,
-  plate: string,
-  evento: string,
-  lat?: number | null,
-  lng?: number | null,
-): Alert {
-  const mapsUrl =
-    lat && lng
-      ? `[Ver en Google Maps](https://www.google.com/maps?q=${lat},${lng})`
-      : "_Sin señal GPS_";
-
-  const text =
-    `🔔 *AVISO DE MONITOREO*\n\n` +
-    `👤 *Cliente:*   ${clientName}\n` +
-    `🚗 *Vehículo:* ${vehicleName}\n` +
-    `🔖 *Placa:*      ${plate}\n` +
-    `⚠️ *Evento:*    ${evento}\n` +
-    `🕒 *Fecha:*      ${getFecha()}\n` +
-    `📍 *Ubicación:* ${mapsUrl}`;
-
-  return { text, lat, lng };
 }
 
 async function sendTelegram(bot: Telegraf, chatId: string, text: string) {
@@ -79,32 +33,25 @@ async function sendLocation(bot: Telegraf, chatId: string, lat: number, lng: num
   }
 }
 
-async function dispatchAlerts(
-  bot: Telegraf,
-  recipients: string[],
-  alerts: Alert[],
-): Promise<void> {
-  if (alerts.length === 0 || recipients.length === 0) return;
-  for (const alert of alerts) {
-    for (const chatId of recipients) {
-      await sendTelegram(bot, chatId, alert.text);
-      if (alert.lat && alert.lng) {
-        await sendLocation(bot, chatId, alert.lat, alert.lng);
-      }
-    }
-  }
-}
-
 async function pollAndNotify(bot: Telegraf): Promise<void> {
   if (polling) return;
   polling = true;
   try {
-    // fetchLivePositions → rápido, incremental (<1s)
-    // fetchDevices       → solo se usa para metadata, ya en caché (5 min TTL)
-    const [clients, vehicles, positions] = await Promise.all([
+    // Primera vez: inicializar lastEventId sin enviar nada (evita flood al arrancar)
+    const events = await fetchPlatformEvents(lastEventId);
+    if (events.length === 0) return;
+
+    if (lastEventId === 0) {
+      // Arranque: sólo guardamos el ID más alto, no notificamos eventos pasados
+      lastEventId = Math.max(...events.map((e) => e.id));
+      logger.info({ lastEventId }, "Platform events initialized — no backlog sent");
+      return;
+    }
+
+    // Carga clientes y vehículos para el mapeo deviceId → telegramIds
+    const [clients, vehicles] = await Promise.all([
       db.select().from(clientsTable).where(isNotNull(clientsTable.telegramId)),
       db.select().from(clientVehiclesTable),
-      fetchLivePositions(),
     ]);
 
     // deviceId → [telegramId, ...]
@@ -117,92 +64,47 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
       deviceOwners.set(v.deviceId, arr);
     }
 
-    for (const device of positions) {
-      const owners = deviceOwners.get(device.id);
-      const prev = snaps.get(device.id);
+    // Mapa rápido para metadatos de vehículo/cliente
+    const vehicleByDevice = new Map(vehicles.map((v) => [v.deviceId, v]));
+    const clientById = new Map(clients.map((c) => [c.id, c]));
 
-      const vRel = vehicles.find((v) => v.deviceId === device.id);
-      const cRel = clients.find((c) => c.id === vRel?.clientId);
-      const plate = vRel?.plate || device.plate || "S/P";
-      const vehicleName = vRel?.deviceName || device.name || "Vehículo";
+    for (const event of events) {
+      lastEventId = Math.max(lastEventId, event.id);
+
+      const owners = deviceOwners.get(event.deviceId);
+      if (!owners || owners.length === 0) continue; // Dispositivo sin cliente asignado
+
+      const vRel = vehicleByDevice.get(event.deviceId);
+      const cRel = vRel ? clientById.get(vRel.clientId) : undefined;
+      const plate = vRel?.plate || "S/P";
+      const vehicleName = vRel?.deviceName || "Vehículo";
       const clientName = cRel?.name || "Cliente GPS";
 
-      if (!prev) {
-        snaps.set(device.id, {
-          status: device.status,
-          speed: device.speed,
-          speedAlerted: false,
-          zone: device.zone,
-        });
-        continue;
-      }
+      const mapsUrl =
+        event.lat && event.lng
+          ? `[Ver en Google Maps](https://www.google.com/maps?q=${event.lat},${event.lng})`
+          : "_Sin señal GPS_";
 
-      const alerts: Alert[] = [];
-      const wasDisc = isDisconnected(prev.status);
-      const isDisc = isDisconnected(device.status);
+      const text =
+        `🔔 *AVISO DE MONITOREO*\n\n` +
+        `👤 *Cliente:*   ${clientName}\n` +
+        `🚗 *Vehículo:* ${vehicleName}\n` +
+        `🔖 *Placa:*      ${plate}\n` +
+        `⚠️ *Evento:*    ${event.message}\n` +
+        `🕒 *Fecha:*      ${getFecha(event.time)}\n` +
+        `📍 *Ubicación:* ${mapsUrl}`;
 
-      // ── Vehículo Encendido ─────────────────────────────────────────────
-      if (wasDisc && !isDisc) {
-        alerts.push(buildAlert(clientName, vehicleName, plate,
-          "Vehículo Encendido 🟢", device.lat, device.lng));
-      }
-
-      // ── Vehículo Apagado ───────────────────────────────────────────────
-      if (!wasDisc && isDisc) {
-        alerts.push(buildAlert(clientName, vehicleName, plate,
-          "Vehículo Apagado 🔴", device.lat, device.lng));
-      }
-
-      // ── Exceso de Velocidad ────────────────────────────────────────────
-      const spd = device.speed ?? 0;
-      if (device.status === "moving" && spd > SPEED_LIMIT_KMH && !prev.speedAlerted) {
-        alerts.push(buildAlert(clientName, vehicleName, plate,
-          `Exceso de Velocidad: *${spd} km/h* (límite ${SPEED_LIMIT_KMH} km/h) 🚨`,
-          device.lat, device.lng));
-        snaps.set(device.id, { ...prev, speedAlerted: true });
-      }
-      if (spd <= SPEED_LIMIT_KMH && prev.speedAlerted) {
-        snaps.set(device.id, { ...prev, speedAlerted: false });
-      }
-
-      // ── Geocerca: entrada / salida ─────────────────────────────────────
-      const prevZone = prev.zone ?? null;
-      const currZone = device.zone ?? null;
-      if (currZone !== prevZone) {
-        if (currZone && !prevZone) {
-          // Entró a una zona
-          alerts.push(buildAlert(clientName, vehicleName, plate,
-            `Entrada a geocerca: *${currZone}* 📍`, device.lat, device.lng));
-        } else if (!currZone && prevZone) {
-          // Salió de una zona
-          alerts.push(buildAlert(clientName, vehicleName, plate,
-            `Salida de geocerca: *${prevZone}* 🚧`, device.lat, device.lng));
-        } else if (currZone && prevZone) {
-          // Cambió de zona
-          alerts.push(buildAlert(clientName, vehicleName, plate,
-            `Cambio de geocerca: *${prevZone}* → *${currZone}* 📍`, device.lat, device.lng));
+      for (const chatId of owners) {
+        await sendTelegram(bot, chatId, text);
+        if (event.lat && event.lng) {
+          await sendLocation(bot, chatId, event.lat, event.lng);
         }
       }
 
-      // Motor Ralentí, ACK y otros estados intermedios → sin alerta
-
-      // Actualizar snapshot
-      snaps.set(device.id, {
-        status: device.status,
-        speed: device.speed,
-        speedAlerted: snaps.get(device.id)?.speedAlerted ?? false,
-        zone: device.zone ?? null,
-      });
-
-      if (alerts.length > 0 && owners && owners.length > 0) {
-        const existing = pendingAlerts.get(device.id);
-        if (existing) clearTimeout(existing);
-        const timer = setTimeout(() => {
-          pendingAlerts.delete(device.id);
-          void dispatchAlerts(bot, owners, alerts);
-        }, 200);
-        pendingAlerts.set(device.id, timer);
-      }
+      logger.info(
+        { eventId: event.id, deviceId: event.deviceId, message: event.message },
+        "Platform event dispatched"
+      );
     }
   } catch (err) {
     logger.error({ err }, "Notification poll error");
@@ -212,12 +114,12 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
 }
 
 export function startNotificationService(bot: Telegraf): void {
-  logger.info("GPS notification service started (live-poll every 2s)");
+  logger.info("GPS notification service started (platform events, poll: 5s)");
 
-  // Precalentar caché de dispositivos en segundo plano (una sola vez)
+  // Pre-calentar caché de dispositivos en segundo plano
   void fetchDevices().catch(() => {/* reintenta solo */});
 
-  // setTimeout recursivo: espera a que termine antes de agendar el siguiente
+  // setTimeout recursivo — espera a terminar antes de agendar el siguiente
   const schedule = () => {
     setTimeout(async () => {
       await pollAndNotify(bot);
@@ -228,5 +130,5 @@ export function startNotificationService(bot: Telegraf): void {
   setTimeout(async () => {
     await pollAndNotify(bot);
     schedule();
-  }, 2_000);
+  }, 3_000);
 }

@@ -44,8 +44,21 @@ export interface LivePosition {
   simNumber: string | null;
   model: string | null;
   driver: string | null;
-  /** Zona/geocerca actual reportada por la plataforma (null = sin zona) */
   zone: string | null;
+}
+
+export interface PlatformEvent {
+  /** ID único creciente — úsalo para filtrar eventos ya procesados */
+  id: number;
+  /** ID del dispositivo en la plataforma */
+  deviceId: string;
+  /** Mensaje exacto de la plataforma en español */
+  message: string;
+  lat: number | null;
+  lng: number | null;
+  speed: number | null;
+  /** Hora formateada por la plataforma, ej: "20-05-2026 10:05:32 AM" */
+  time: string;
 }
 
 let sessionCookies: string[] = [];
@@ -367,6 +380,61 @@ export async function fetchFleetStats() {
     else if (d.status === "engine_idle") stats.engineIdle++;
   }
   return stats;
+}
+
+/**
+ * Obtiene los eventos más recientes de la plataforma parseando /events.
+ * La plataforma embebe cada evento como: app.events.add({...})
+ * Los IDs son crecientes — usa `sinceId` para filtrar sólo los nuevos.
+ */
+export async function fetchPlatformEvents(sinceId = 0): Promise<PlatformEvent[]> {
+  const ok = await ensureSession();
+  if (!ok) return [];
+
+  const client = createClient();
+  try {
+    const resp = await client.get("/events", {
+      headers: {
+        Cookie: cookieHeader(),
+        Referer: `${GPS_BASE_URL}/objects`,
+        Accept: "text/html,application/xhtml+xml,*/*",
+      },
+    });
+
+    if (typeof resp.data !== "string") return [];
+
+    const events: PlatformEvent[] = [];
+    const regex = /app\.events\.add\((\{[\s\S]*?\})\);/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(resp.data)) !== null) {
+      try {
+        const raw = JSON.parse(match[1]) as Record<string, unknown>;
+        const id = Number(raw.id ?? 0);
+        if (!id || id <= sinceId) continue;
+
+        const lat = raw.latitude != null ? parseFloat(String(raw.latitude)) : null;
+        const lng = raw.longitude != null ? parseFloat(String(raw.longitude)) : null;
+
+        events.push({
+          id,
+          deviceId: String(raw.device_id ?? ""),
+          message: String(raw.message ?? raw.name ?? ""),
+          lat: lat && !isNaN(lat) ? lat : null,
+          lng: lng && !isNaN(lng) ? lng : null,
+          speed: raw.speed != null ? parseFloat(String(raw.speed)) : null,
+          time: String(raw.time ?? ""),
+        });
+      } catch {
+        // malformed JSON in one event — skip it
+      }
+    }
+
+    return events.sort((a, b) => a.id - b.id);
+  } catch (err) {
+    logger.error({ err }, "Failed to fetch platform events");
+    return [];
+  }
 }
 
 export async function getConnectionStatus() {
