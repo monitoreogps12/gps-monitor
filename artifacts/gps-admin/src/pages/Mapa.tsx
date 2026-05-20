@@ -121,15 +121,40 @@ export function Mapa() {
         ['Vehículo', pos.name || '—'],
         ['Estado', `<span style="color:${color};font-weight:700">${getStatusLabel(pos.status)}</span>`],
       ];
-      if ((pos.speed ?? 0) > 0) rows.push(['Velocidad', `<b style="color:${(pos.speed ?? 0) > 90 ? '#ef4444' : '#22c55e'}">${pos.speed} km/h${(pos.speed ?? 0) > 90 ? ' ⚠️' : ''}</b>`]);
       if (pos.model) rows.push(['Modelo', pos.model]);
       if (pos.driver) rows.push(['Conductor', pos.driver]);
       if (pos.imei) rows.push(['IMEI', `<span style="font-family:monospace;font-size:11px">${pos.imei}</span>`]);
       if (pos.simNumber) rows.push(['SIM', pos.simNumber]);
       if (pos.lastConnection) rows.push(['Últ. conexión', new Date(pos.lastConnection).toLocaleString('es-VE')]);
 
+      // Sensor rows — only show available values
+      const sensorRows: [string, string][] = [];
+      const motorColor = pos.engineStatus ? '#22c55e' : '#94a3b8';
+      sensorRows.push(['Motor', `<b style="color:${motorColor}">${pos.engineStatus ? 'ON ✓' : 'OFF'}</b>`]);
+      if (pos.speed !== null && pos.speed !== undefined) {
+        const sp = pos.speed ?? 0;
+        sensorRows.push(['Velocidad', `<b style="color:${sp > 90 ? '#ef4444' : sp > 0 ? '#22c55e' : '#94a3b8'}">${sp} km/h${sp > 90 ? ' ⚠️' : ''}</b>`]);
+      }
+      if (pos.totalDistance !== null && pos.totalDistance !== undefined && pos.totalDistance > 0) {
+        sensorRows.push(['Odómetro', `${pos.totalDistance.toLocaleString('es-VE', { maximumFractionDigits: 1 })} km`]);
+      }
+      if (pos.stopDurationSec !== null && pos.stopDurationSec !== undefined && pos.stopDurationSec > 0 && pos.status !== 'moving') {
+        const mins = Math.floor(pos.stopDurationSec / 60);
+        const hrs = Math.floor(mins / 60);
+        const stopStr = hrs > 0 ? `${hrs}h ${mins % 60}m parado` : `${mins}m parado`;
+        sensorRows.push(['Tiempo det.', stopStr]);
+      }
+      if (pos.altitude !== null && pos.altitude !== undefined && pos.altitude > 0) {
+        sensorRows.push(['Altitud', `${pos.altitude} m`]);
+      }
+      if (pos.heading !== null && pos.heading !== undefined) {
+        const dirs = ['N','NE','E','SE','S','SO','O','NO'];
+        const dir = dirs[Math.round((pos.heading ?? 0) / 45) % 8];
+        sensorRows.push(['Curso', `${pos.heading}° ${dir}`]);
+      }
+
       const popup = `
-        <div style="font-family:'Inter',sans-serif;min-width:230px;max-width:270px">
+        <div style="font-family:'Inter',sans-serif;min-width:250px;max-width:290px">
           <div style="background:${color};padding:10px 14px;border-radius:10px 10px 0 0;margin:-8px -8px 0 -8px">
             <div style="font-size:17px;font-weight:900;color:#fff;letter-spacing:0.02em">${pos.plate || pos.name}</div>
             <div style="font-size:11px;color:rgba(255,255,255,0.82);margin-top:2px">${pos.name}</div>
@@ -140,6 +165,16 @@ export function Mapa() {
                 <span style="font-size:11px;color:#94a3b8;font-weight:600;white-space:nowrap;margin-right:8px">${k}</span>
                 <span style="font-size:12px;color:#1e293b;text-align:right">${v}</span>
               </div>`).join('')}
+          </div>
+          <div style="margin-top:6px;padding:8px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+            <div style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">⚙️ Sensores</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+              ${sensorRows.map(([k, v]) => `
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:5px 7px">
+                  <div style="font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.06em">${k}</div>
+                  <div style="font-size:12px;color:#0f172a;font-weight:700;margin-top:1px">${v}</div>
+                </div>`).join('')}
+            </div>
           </div>
           ${pos.lat && pos.lng ? `
           <a href="https://maps.google.com/?q=${pos.lat},${pos.lng}" target="_blank"

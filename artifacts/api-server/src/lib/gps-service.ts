@@ -45,6 +45,10 @@ export interface LivePosition {
   model: string | null;
   driver: string | null;
   zone: string | null;
+  engineStatus: boolean | null;
+  altitude: number | null;
+  totalDistance: number | null;
+  stopDurationSec: number | null;
 }
 
 export interface PlatformEvent {
@@ -334,6 +338,10 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
           model: dev?.model ?? null,
           driver: dev?.driver ?? null,
           zone: zoneName,
+          engineStatus,
+          altitude: d.altitude != null ? parseFloat(String(d.altitude)) : null,
+          totalDistance: d.total_distance != null ? parseFloat(String(d.total_distance)) : null,
+          stopDurationSec: d.stop_duration_sec != null ? parseFloat(String(d.stop_duration_sec)) : null,
         });
       }
 
@@ -436,6 +444,7 @@ export async function fetchPlatformEvents(sinceId = 0): Promise<PlatformEvent[]>
     return [];
   }
 }
+
 
 export async function getConnectionStatus() {
   const ok = await ensureSession();

@@ -62,4 +62,5 @@ router.get("/gps/events/recent", (req, res): void => {
   res.json(GetRecentEventsResponse.parse(events));
 });
 
+
 export default router;

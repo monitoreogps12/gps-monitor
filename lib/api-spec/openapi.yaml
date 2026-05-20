@@ -399,6 +399,16 @@ components:
           type: ["string", "null"]
         driver:
           type: ["string", "null"]
+        zone:
+          type: ["string", "null"]
+        engineStatus:
+          type: ["boolean", "null"]
+        altitude:
+          type: ["number", "null"]
+        totalDistance:
+          type: ["number", "null"]
+        stopDurationSec:
+          type: ["number", "null"]
 
     FleetStats:
       type: object

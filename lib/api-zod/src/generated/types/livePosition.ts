@@ -29,4 +29,14 @@ export interface LivePosition {
   model?: string | null;
   /** @nullable */
   driver?: string | null;
+  /** @nullable */
+  zone?: string | null;
+  /** @nullable */
+  engineStatus?: boolean | null;
+  /** @nullable */
+  altitude?: number | null;
+  /** @nullable */
+  totalDistance?: number | null;
+  /** @nullable */
+  stopDurationSec?: number | null;
 }
