@@ -101,17 +101,20 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
       db.select().from(clientVehiclesTable),
     ]);
 
+    // telegramId → client name (for personalised messages per recipient)
+    const telegramToName = new Map<string, string>();
+    // deviceId → list of [telegramId, clientName] pairs
     const deviceOwners = new Map<string, string[]>();
     for (const v of vehicles) {
       const client = clients.find((c) => c.id === v.clientId);
       if (!client?.telegramId) continue;
+      telegramToName.set(client.telegramId, client.name);
       const arr = deviceOwners.get(v.deviceId) ?? [];
       arr.push(client.telegramId);
       deviceOwners.set(v.deviceId, arr);
     }
 
     const vehicleByDevice = new Map(vehicles.map((v) => [v.deviceId, v]));
-    const clientById = new Map(clients.map((c) => [c.id, c]));
 
     // Also build deviceId → clientNames for the buffer (all clients, not just Telegram ones)
     const allVehicles = await db.select().from(clientVehiclesTable);
@@ -155,24 +158,24 @@ async function pollAndNotify(bot: Telegraf): Promise<void> {
       // Only dispatch Telegram if owner has Telegram configured
       if (!dispatched) continue;
 
-      const cRel = vRel ? clientById.get(vRel.clientId) : undefined;
-      const clientName = cRel?.name ?? "Cliente GPS";
-
       const mapsUrl =
         event.lat && event.lng
           ? `[Ver en Google Maps](https://www.google.com/maps?q=${event.lat},${event.lng})`
           : "_Sin señal GPS_";
 
-      const text =
-        `🔔 *AVISO DE MONITOREO*\n\n` +
-        `👤 *Cliente:*   ${clientName}\n` +
-        `🚗 *Vehículo:* ${deviceName || "Vehículo"}\n` +
-        `🔖 *Placa:*      ${plate || "S/P"}\n` +
-        `⚠️ *Evento:*    ${event.message}\n` +
-        `🕒 *Fecha:*      ${getFecha(event.time)}\n` +
-        `📍 *Ubicación:* ${mapsUrl}`;
-
       for (const chatId of owners!) {
+        // Use each recipient's own name — fixes shared-vehicle multi-client bug
+        const clientName = telegramToName.get(chatId) ?? "Cliente GPS";
+
+        const text =
+          `🔔 *AVISO DE MONITOREO*\n\n` +
+          `👤 *Cliente:*   ${clientName}\n` +
+          `🚗 *Vehículo:* ${deviceName || "Vehículo"}\n` +
+          `🔖 *Placa:*      ${plate || "S/P"}\n` +
+          `⚠️ *Evento:*    ${event.message}\n` +
+          `🕒 *Fecha:*      ${getFecha(event.time)}\n` +
+          `📍 *Ubicación:* ${mapsUrl}`;
+
         await sendTelegram(bot, chatId, text);
         if (event.lat && event.lng) {
           await sendLocation(bot, chatId, event.lat, event.lng);
