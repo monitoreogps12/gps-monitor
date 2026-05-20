@@ -271,9 +271,9 @@ export function startNotificationService(bot: Telegraf): void {
     "GPS notification service started (poll: 2s, delay: sistema → app +1s → telegram +1s)",
   );
 
-  // First poll after 30s warmup
+  // First poll after short warmup, then every POLL_INTERVAL_MS
   setTimeout(() => {
     void pollAndNotify(bot);
     setInterval(() => void pollAndNotify(bot), POLL_INTERVAL_MS);
-  }, 30_000);
+  }, 5_000);
 }

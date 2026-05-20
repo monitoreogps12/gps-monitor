@@ -393,8 +393,45 @@ export function startClientBot(): void {
     );
   });
 
+  // ─── Alias botones anteriores (compatibilidad hacia atrás) ────────────────
+  // El usuario puede tener el teclado viejo cacheado en Telegram
+  bot.hears("📊 Estado General", showResumen);
+  bot.hears("📍 Ubicación de Vehículo", async (ctx: Context) => {
+    // Redirigir al flujo nuevo de selección por placa
+    const client = await requireClient(ctx);
+    if (!client) return;
+    const vehicles = await db.select().from(clientVehiclesTable).where(eq(clientVehiclesTable.clientId, client.id));
+    if (vehicles.length === 0) { await ctx.reply("ℹ️ No tienes vehículos asignados.", MAIN_MENU); return; }
+    const buttons = vehicles.map((v) => [`🔍 ${v.plate || v.deviceName || v.deviceId}`]);
+    await ctx.reply("Selecciona el vehículo:", Markup.keyboard([...buttons, ["🔙 Volver al menú"]]).resize());
+  });
+  // Botón viejo de selección de placa (prefijo 📍)
+  bot.hears(/^📍 (.+)$/, async (ctx: Context) => {
+    const client = await requireClient(ctx);
+    if (!client) return;
+    const match = (ctx.message as { text: string }).text.match(/^📍 (.+)$/);
+    const term = match?.[1]?.trim().toUpperCase() ?? "";
+    if (!term) return;
+    const vehicles = await db.select().from(clientVehiclesTable).where(eq(clientVehiclesTable.clientId, client.id));
+    const vehicle = vehicles.find((v) =>
+      v.plate.toUpperCase().includes(term) ||
+      v.deviceName.toUpperCase().includes(term) ||
+      v.deviceId === term
+    );
+    if (!vehicle) { await ctx.reply("❌ Vehículo no encontrado.", MAIN_MENU); return; }
+    try {
+      const devices = await fetchDevices();
+      await sendVehicleCard(ctx, vehicle, devices.find((d) => d.id === vehicle.deviceId), MAIN_MENU);
+    } catch {
+      await ctx.reply("⚠️ Error al obtener datos.", MAIN_MENU);
+    }
+  });
+
   // 🔙 Volver ────────────────────────────────────────────────────────────────
   bot.hears("🔙 Volver al menú", async (ctx: Context) => {
+    await ctx.reply("Menú principal:", MAIN_MENU);
+  });
+  bot.hears("🔙 Volver", async (ctx: Context) => {
     await ctx.reply("Menú principal:", MAIN_MENU);
   });
 
@@ -420,6 +457,14 @@ export function startClientBot(): void {
   bot.hears("❓ Ayuda", showHelp);
   bot.command("ayuda", showHelp);
   bot.command("help", showHelp);
+
+  // ─── Catch-all: mensaje no reconocido ────────────────────────────────────
+  bot.on("text", async (ctx: Context) => {
+    await ctx.reply(
+      "No entendí ese mensaje. Usa el menú o escribe /ayuda.",
+      MAIN_MENU
+    );
+  });
 
   // Iniciar servicio de notificaciones automáticas ──────────────────────────
   startNotificationService(bot);
