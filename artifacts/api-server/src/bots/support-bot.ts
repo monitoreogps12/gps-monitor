@@ -216,6 +216,38 @@ async function sendDetailCard(ctx: Context, d: GpsDevice) {
   }
 }
 
+// ─── Resilient launcher ───────────────────────────────────────────────────────
+
+async function launchWithRetry(
+  bot: Telegraf,
+  name: string,
+  attempt = 1,
+): Promise<void> {
+  const MAX_ATTEMPTS = 10;
+  const BASE_DELAY_MS = 15_000;
+
+  try {
+    await bot.launch({ dropPendingUpdates: true });
+    logger.info({ name }, "Telegram bot started");
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    const is409 = message.includes("409");
+    const isTimeout = message.includes("timed out") || message.includes("TimeoutError");
+
+    if ((is409 || isTimeout) && attempt <= MAX_ATTEMPTS) {
+      const delay = Math.min(BASE_DELAY_MS * attempt, 5 * 60_000);
+      logger.warn(
+        { name, attempt, delayMs: delay, reason: is409 ? "409_conflict" : "timeout" },
+        "Bot launch failed — will retry"
+      );
+      await new Promise((r) => setTimeout(r, delay));
+      await launchWithRetry(bot, name, attempt + 1);
+    } else {
+      logger.error({ err, name, attempt }, "Bot launch failed permanently");
+    }
+  }
+}
+
 // ─── Bot ─────────────────────────────────────────────────────────────────────
 
 export function startSupportBot(): void {
@@ -726,9 +758,7 @@ export function startSupportBot(): void {
   });
 
   // ─── Launch ───────────────────────────────────────────────────────────────
-  bot.launch({ dropPendingUpdates: true })
-    .then(() => logger.info("Support Telegram bot started"))
-    .catch((err: unknown) => logger.error({ err }, "Failed to start support bot"));
+  void launchWithRetry(bot, "support");
 
   process.once("SIGINT", () => bot.stop("SIGINT"));
   process.once("SIGTERM", () => bot.stop("SIGTERM"));
