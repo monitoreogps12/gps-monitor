@@ -114,6 +114,53 @@ export function startClientBot(): void {
 
   const bot = new Telegraf(TOKEN);
 
+  // Botón para solicitar número de teléfono nativo de Telegram
+  const CONTACT_BUTTON = Markup.keyboard([
+    [Markup.button.contactRequest("📱 Compartir mi número de teléfono")],
+  ]).resize().oneTime();
+
+  // Lógica de registro compartida (usada tanto por contact como por /registrar)
+  async function registerByPhone(
+    ctx: Context,
+    chatId: string,
+    phone: string,
+  ): Promise<void> {
+    const normalised = phone.startsWith("+") ? phone : `+${phone}`;
+
+    const byPhone = await db.select().from(clientsTable)
+      .where(eq(clientsTable.phone, normalised));
+
+    if (byPhone[0]) {
+      await db.update(clientsTable)
+        .set({ telegramId: chatId, telegramUsername: ctx.from?.username ?? null, updatedAt: new Date() })
+        .where(eq(clientsTable.id, byPhone[0].id));
+      await ctx.reply(
+        `✅ *¡Cuenta vinculada exitosamente!*\n\n` +
+        `Bienvenido, *${byPhone[0].name}*.\n\n` +
+        `🔔 *Notificaciones automáticas activadas:*\n` +
+        `   • 🟢 Encendido / Apagado\n` +
+        `   • ⚠️ Exceso de velocidad (>90 km/h)\n` +
+        `   • 🔄 Cambios de estado\n\n` +
+        `Cada alerta incluye la ubicación en tiempo real.`,
+        { parse_mode: "Markdown", ...MAIN_MENU }
+      );
+      return;
+    }
+
+    // No existe en la BD — registrar como nuevo
+    const name = `${ctx.from?.first_name ?? ""} ${ctx.from?.last_name ?? ""}`.trim() || "Cliente";
+    await db.insert(clientsTable).values({
+      name, phone: normalised, telegramId: chatId, telegramUsername: ctx.from?.username ?? null,
+    });
+    await ctx.reply(
+      `✅ *Registro exitoso*\n\n` +
+      `Número *${normalised}* registrado.\n\n` +
+      `Un técnico de *GPS SISTEMA C.A.* asignará tus vehículos en breve.\n` +
+      `Una vez asignados, comenzarás a recibir notificaciones automáticas.`,
+      { parse_mode: "Markdown", ...MAIN_MENU }
+    );
+  }
+
   // /start ─────────────────────────────────────────────────────────────────
   bot.start(async (ctx: Context) => {
     const chatId = String(ctx.chat!.id);
@@ -135,15 +182,45 @@ export function startClientBot(): void {
     }
 
     await ctx.reply(
-      `👋 Bienvenido a *GPS SISTEMA C.A.*, ${firstName}!\n\n` +
-      `Para activar el monitoreo de tus vehículos, regístrate con tu número de teléfono:\n\n` +
-      `\`/registrar +584XXXXXXXXX\`\n\n` +
-      `_Ejemplo: /registrar +584147583683_`,
-      { parse_mode: "Markdown" }
+      `👋 ¡Bienvenido a *GPS SISTEMA C.A.*, ${firstName}!\n\n` +
+      `Para activar el monitoreo de tus vehículos necesito verificar tu número.\n\n` +
+      `Toca el botón de abajo para compartirlo con un solo toque 👇`,
+      { parse_mode: "Markdown", ...CONTACT_BUTTON }
     );
   });
 
-  // /registrar ─────────────────────────────────────────────────────────────
+  // Recibe el contacto compartido por Telegram ─────────────────────────────
+  bot.on("contact", async (ctx: Context) => {
+    const chatId = String(ctx.chat!.id);
+    const contact = (ctx.message as { contact?: { phone_number?: string; user_id?: number } }).contact;
+
+    if (!contact?.phone_number) {
+      await ctx.reply("❌ No se pudo leer el número. Intenta de nuevo con /start.", MAIN_MENU);
+      return;
+    }
+
+    // Verificar que el contacto compartido sea el del propio usuario
+    if (contact.user_id && contact.user_id !== ctx.from?.id) {
+      await ctx.reply(
+        "❌ Por favor comparte *tu propio* número de teléfono, no el de un contacto.",
+        { parse_mode: "Markdown", ...CONTACT_BUTTON }
+      );
+      return;
+    }
+
+    const existing = await getClient(chatId);
+    if (existing) {
+      await ctx.reply(
+        `✅ Ya estás registrado como *${existing.name}*.`,
+        { parse_mode: "Markdown", ...MAIN_MENU }
+      );
+      return;
+    }
+
+    await registerByPhone(ctx, chatId, contact.phone_number);
+  });
+
+  // /registrar (fallback manual) ────────────────────────────────────────────
   bot.command("registrar", async (ctx: Context) => {
     const chatId = String(ctx.chat!.id);
     const text = (ctx.message as { text: string }).text;
@@ -151,8 +228,7 @@ export function startClientBot(): void {
 
     if (!phone) {
       await ctx.reply(
-        "❌ Debes indicar tu número de teléfono.\n\n" +
-        "Ejemplo: `/registrar +584147583683`",
+        "❌ Debes indicar tu número.\n\nEjemplo: `/registrar +584147583683`\n\nO usa el botón de /start para compartirlo automáticamente.",
         { parse_mode: "Markdown" }
       );
       return;
@@ -161,42 +237,13 @@ export function startClientBot(): void {
     const existing = await getClient(chatId);
     if (existing) {
       await ctx.reply(
-        `✅ Ya estás registrado como *${existing.name}*.\n\n` +
-        `Tus notificaciones están activas.`,
+        `✅ Ya estás registrado como *${existing.name}*.`,
         { parse_mode: "Markdown", ...MAIN_MENU }
       );
       return;
     }
 
-    const byPhone = await db.select().from(clientsTable).where(eq(clientsTable.phone, phone));
-    if (byPhone[0]) {
-      await db.update(clientsTable)
-        .set({ telegramId: chatId, telegramUsername: ctx.from?.username ?? null, updatedAt: new Date() })
-        .where(eq(clientsTable.id, byPhone[0].id));
-      await ctx.reply(
-        `✅ *¡Cuenta vinculada exitosamente!*\n\n` +
-        `Bienvenido, *${byPhone[0].name}*.\n\n` +
-        `🔔 *Notificaciones automáticas activadas:*\n` +
-        `   • 🟢 Encendido / Apagado\n` +
-        `   • ⚠️ Exceso de velocidad (>90 km/h)\n` +
-        `   • 🔄 Cambios de estado\n\n` +
-        `Cada alerta incluye la ubicación en tiempo real.`,
-        { parse_mode: "Markdown", ...MAIN_MENU }
-      );
-      return;
-    }
-
-    const name = `${ctx.from?.first_name ?? ""} ${ctx.from?.last_name ?? ""}`.trim() || "Cliente";
-    await db.insert(clientsTable).values({
-      name, phone, telegramId: chatId, telegramUsername: ctx.from?.username ?? null,
-    });
-    await ctx.reply(
-      `✅ *Registro exitoso*\n\n` +
-      `Número *${phone}* registrado.\n\n` +
-      `Un técnico de *GPS SISTEMA C.A.* asignará tus vehículos en breve.\n` +
-      `Una vez asignados, comenzarás a recibir notificaciones automáticas.`,
-      { parse_mode: "Markdown", ...MAIN_MENU }
-    );
+    await registerByPhone(ctx, chatId, phone);
   });
 
   // 🚗 Mis Vehículos ────────────────────────────────────────────────────────
