@@ -558,15 +558,15 @@ function ClientRow({ client, liveMap }: { client: ClientWithVehicles; liveMap: M
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar cliente?</AlertDialogTitle>
+            <AlertDialogTitle>¿Desactivar cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará <strong>{client.name}</strong> y todos sus vehículos asignados. Esta acción no se puede deshacer.
+              Se desactivará <strong>{client.name}</strong> y se desvinculará su cuenta de Telegram. Sus datos y vehículos asignados se conservan. Si el cliente vuelve a iniciar el bot, podrá reactivarse automáticamente con su número de teléfono.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteClient.mutate({ id: client.id })} className="bg-destructive hover:bg-destructive/90">
-              Eliminar
+              Desactivar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

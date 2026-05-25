@@ -164,7 +164,7 @@ export function startClientBot(): void {
 
     if (byPhone[0]) {
       await db.update(clientsTable)
-        .set({ telegramId: chatId, telegramUsername: ctx.from?.username ?? null, updatedAt: new Date() })
+        .set({ telegramId: chatId, telegramUsername: ctx.from?.username ?? null, isActive: true, updatedAt: new Date() })
         .where(eq(clientsTable.id, byPhone[0].id));
       await ctx.reply(
         `✅ *¡Cuenta vinculada exitosamente!*\n\n` +
