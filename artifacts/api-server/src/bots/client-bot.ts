@@ -2,7 +2,7 @@ import { Telegraf, Markup, type Context } from "telegraf";
 import { db } from "@workspace/db";
 import { clientsTable, clientVehiclesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { fetchDevices, type GpsDevice } from "../lib/gps-service";
+import { fetchDevices, fetchLivePositions, type GpsDevice, type LivePosition } from "../lib/gps-service";
 import { logger } from "../lib/logger";
 import { startNotificationService } from "./notifications";
 
@@ -43,6 +43,28 @@ function getFecha() {
 }
 
 function sep() { return "─".repeat(28); }
+
+// Combina datos del device (metadatos) con la posición en vivo (lat/lng/estado)
+// fetchDevices() nunca devuelve lat/lng — solo fetchLivePositions() los trae
+function mergeWithLive(device: GpsDevice | undefined, live: LivePosition | undefined): GpsDevice | undefined {
+  if (!device && !live) return undefined;
+  if (!live) return device;
+  return {
+    id: live.id,
+    name: live.name || device?.name || "",
+    plate: live.plate || device?.plate || "",
+    imei: device?.imei || live.imei || "",
+    simNumber: device?.simNumber || live.simNumber || "",
+    model: device?.model || live.model || null,
+    status: live.status,
+    speed: live.speed,
+    lastConnection: live.lastConnection,
+    lat: live.lat,
+    lng: live.lng,
+    address: live.address,
+    driver: live.driver || device?.driver || null,
+  };
+}
 
 async function getClient(chatId: string) {
   const rows = await db.select().from(clientsTable).where(eq(clientsTable.telegramId, chatId));
@@ -293,7 +315,10 @@ export function startClientBot(): void {
     }
 
     let devices: GpsDevice[] = [];
-    try { devices = await fetchDevices(); } catch { /* usa cache vacío */ }
+    let livePositions: LivePosition[] = [];
+    try {
+      [devices, livePositions] = await Promise.all([fetchDevices(), fetchLivePositions()]);
+    } catch { /* usa cache vacío */ }
 
     const lines = [
       `🚗 *Mis Vehículos* — ${vehicles.length} unidad(es)\n`,
@@ -302,12 +327,14 @@ export function startClientBot(): void {
 
     for (const v of vehicles) {
       const d = devices.find((dev) => dev.id === v.deviceId);
-      const plate = v.plate || d?.plate || v.deviceId;
-      const emoji = d ? stEmoji(d.status) : "⚪";
-      const estado = d ? stLabel(d.status) : "Sin datos";
-      const vel = d?.speed && d.speed > 0 ? ` · ${d.speed} km/h${d.speed > 90 ? " ⚠️" : ""}` : "";
+      const live = livePositions.find((p) => p.id === v.deviceId);
+      const merged = mergeWithLive(d, live);
+      const plate = v.plate || merged?.plate || v.deviceId;
+      const emoji = merged ? stEmoji(merged.status) : "⚪";
+      const estado = merged ? stLabel(merged.status) : "Sin datos";
+      const vel = merged?.speed && merged.speed > 0 ? ` · ${merged.speed} km/h${merged.speed > 90 ? " ⚠️" : ""}` : "";
       lines.push(`${emoji} *${plate}*  —  ${estado}${vel}`);
-      lines.push(`   🕐 ${d?.lastConnection || "N/A"}`);
+      lines.push(`   🕐 ${merged?.lastConnection || "N/A"}`);
       lines.push("");
     }
 
@@ -406,9 +433,10 @@ export function startClientBot(): void {
     }
 
     try {
-      const devices = await fetchDevices();
+      const [devices, livePositions] = await Promise.all([fetchDevices(), fetchLivePositions()]);
       const device = devices.find((d) => d.id === vehicle.deviceId);
-      await sendVehicleCard(ctx, vehicle, device, MAIN_MENU);
+      const live = livePositions.find((p) => p.id === vehicle.deviceId);
+      await sendVehicleCard(ctx, vehicle, mergeWithLive(device, live) ?? device, MAIN_MENU);
     } catch {
       await ctx.reply("⚠️ Error al consultar datos. Intenta de nuevo.", MAIN_MENU);
     }
@@ -444,8 +472,10 @@ export function startClientBot(): void {
     }
 
     try {
-      const devices = await fetchDevices();
-      await sendVehicleCard(ctx, vehicle, devices.find((d) => d.id === vehicle.deviceId));
+      const [devices, livePositions] = await Promise.all([fetchDevices(), fetchLivePositions()]);
+      const device = devices.find((d) => d.id === vehicle.deviceId);
+      const live = livePositions.find((p) => p.id === vehicle.deviceId);
+      await sendVehicleCard(ctx, vehicle, mergeWithLive(device, live) ?? device);
     } catch {
       await ctx.reply("⚠️ Error al obtener datos.");
     }
