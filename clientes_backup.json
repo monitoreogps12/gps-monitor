@@ -1,0 +1,303 @@
+{
+  "exportado": "6/6/2026, 10:53:47 a. m.",
+  "total_clientes": 27,
+  "clientes": [
+    {
+      "id": 1,
+      "nombre": "Rafael Contreras",
+      "telefono": "+584261083671",
+      "telegram_id": "7569627806",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:45.660846",
+      "actualizado": "2026-05-16 17:46:45.660846"
+    },
+    {
+      "id": 2,
+      "nombre": "Eduardo Cordoba",
+      "telefono": "+584247172512",
+      "telegram_id": "8049782967",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:45.747216",
+      "actualizado": "2026-05-16 17:46:45.747216"
+    },
+    {
+      "id": 3,
+      "nombre": "Wirnelia Montero",
+      "telefono": "+584247250295",
+      "telegram_id": "5764535026",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:45.793002",
+      "actualizado": "2026-05-16 17:46:45.793002"
+    },
+    {
+      "id": 4,
+      "nombre": "Ricardo Martinez",
+      "telefono": "+17864883243",
+      "telegram_id": "8586814925",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:45.840971",
+      "actualizado": "2026-05-16 17:46:45.840971"
+    },
+    {
+      "id": 5,
+      "nombre": "Chargon Vigia Jean Carlos",
+      "telefono": "+584147113910",
+      "telegram_id": "5959633153",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:45.894036",
+      "actualizado": "2026-05-16 17:46:45.894036"
+    },
+    {
+      "id": 6,
+      "nombre": "Chargon P/C Joy",
+      "telefono": "+584120383173",
+      "telegram_id": "7633000375",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:45.94597",
+      "actualizado": "2026-05-16 17:46:45.94597"
+    },
+    {
+      "id": 7,
+      "nombre": "Yvys Amparo",
+      "telefono": "+584143734933",
+      "telegram_id": "6486915033",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:45.989758",
+      "actualizado": "2026-05-16 17:46:45.989758"
+    },
+    {
+      "id": 8,
+      "nombre": "Erie Molina",
+      "telefono": "+584147237898",
+      "telegram_id": "7366398950",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.033664",
+      "actualizado": "2026-05-16 17:46:46.033664"
+    },
+    {
+      "id": 9,
+      "nombre": "Francisco Montilla",
+      "telefono": "+584120299407",
+      "telegram_id": "8632049145",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.079337",
+      "actualizado": "2026-05-16 17:46:46.079337"
+    },
+    {
+      "id": 10,
+      "nombre": "Henry Zambrano",
+      "telefono": "+584247649320",
+      "telegram_id": "1498261798",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.129004",
+      "actualizado": "2026-05-16 17:46:46.129004"
+    },
+    {
+      "id": 11,
+      "nombre": "Leidy Rojas",
+      "telefono": "+584147388181",
+      "telegram_id": "8487759873",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.173514",
+      "actualizado": "2026-05-16 17:46:46.173514"
+    },
+    {
+      "id": 12,
+      "nombre": "Carlos Gomez",
+      "telefono": "+584140822767",
+      "telegram_id": "1112502481",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.218636",
+      "actualizado": "2026-05-16 17:46:46.218636"
+    },
+    {
+      "id": 13,
+      "nombre": "Javier Jimenez",
+      "telefono": "+584146323343",
+      "telegram_id": "886993522",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.263832",
+      "actualizado": "2026-05-16 17:46:46.263832"
+    },
+    {
+      "id": 14,
+      "nombre": "Jose Gerardo Perez Villa",
+      "telefono": "+584247375141",
+      "telegram_id": "8758964568",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.311925",
+      "actualizado": "2026-05-16 17:46:46.311925"
+    },
+    {
+      "id": 15,
+      "nombre": "Jean Carlos Salcedo",
+      "telefono": "+584147577240",
+      "telegram_id": "1083366717",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.355507",
+      "actualizado": "2026-05-16 17:46:46.355507"
+    },
+    {
+      "id": 16,
+      "nombre": "G/B Perez Silen Pedro Luisve",
+      "telefono": "+584248904487",
+      "telegram_id": "318509172",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.399317",
+      "actualizado": "2026-05-16 17:46:46.399317"
+    },
+    {
+      "id": 17,
+      "nombre": "Hidrobo Gonzalez Orelio",
+      "telefono": "+584247576788",
+      "telegram_id": "1548416032",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.446779",
+      "actualizado": "2026-05-16 17:46:46.446779"
+    },
+    {
+      "id": 18,
+      "nombre": "Juan Carlos Casana Rivero",
+      "telefono": "+584123093728",
+      "telegram_id": "6983051856",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.510648",
+      "actualizado": "2026-05-16 17:46:46.510648"
+    },
+    {
+      "id": 19,
+      "nombre": "Jose Ramirez",
+      "telefono": "+18043998132",
+      "telegram_id": "5871641669",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.558596",
+      "actualizado": "2026-05-16 17:46:46.558596"
+    },
+    {
+      "id": 20,
+      "nombre": "Jose Duran",
+      "telefono": "+584248199819",
+      "telegram_id": "8513569881",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.605973",
+      "actualizado": "2026-05-16 17:46:46.605973"
+    },
+    {
+      "id": 21,
+      "nombre": "Angel Moran",
+      "telefono": "+584126152229",
+      "telegram_id": "1729637285",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.648066",
+      "actualizado": "2026-05-16 17:46:46.648066"
+    },
+    {
+      "id": 22,
+      "nombre": "Luis Ledezma",
+      "telefono": "+584247069340",
+      "telegram_id": "1654444448",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.693438",
+      "actualizado": "2026-05-16 17:46:46.693438"
+    },
+    {
+      "id": 23,
+      "nombre": "Orlando Rangel",
+      "telefono": "+584147560664",
+      "telegram_id": "1137036638",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.742157",
+      "actualizado": "2026-05-16 17:46:46.742157"
+    },
+    {
+      "id": 24,
+      "nombre": "Ricardo Hernandez",
+      "telefono": "+584247439417",
+      "telegram_id": "5483695324",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.789753",
+      "actualizado": "2026-05-16 17:46:46.789753"
+    },
+    {
+      "id": 25,
+      "nombre": "Olinto Flores",
+      "telefono": "+584147583683",
+      "telegram_id": "1285867451",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:46:46.837714",
+      "actualizado": "2026-05-16 17:46:46.837714"
+    },
+    {
+      "id": 26,
+      "nombre": "GPS SISTEMA C.A.",
+      "telefono": "+584169374489",
+      "telegram_id": "7565191469",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-16 17:50:46.79513",
+      "actualizado": "2026-05-16 17:51:09.231"
+    },
+    {
+      "id": 27,
+      "nombre": "D Eme",
+      "telefono": "+584128478793",
+      "telegram_id": "6168126121",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-27 17:17:04.038599",
+      "actualizado": "2026-05-27 17:17:04.038599"
+    }
+  ]
+}
