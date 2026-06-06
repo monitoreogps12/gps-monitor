@@ -1,6 +1,7 @@
 {
-  "exportado": "6/6/2026, 10:53:47 a. m.",
-  "total_clientes": 27,
+  "exportado": "6/6/2026, 11:01:52 a. m.",
+  "fuente": "produccion",
+  "total_clientes": 37,
   "clientes": [
     {
       "id": 1,
@@ -286,18 +287,128 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:50:46.79513",
-      "actualizado": "2026-05-16 17:51:09.231"
+      "actualizado": "2026-06-05 21:27:20.761"
     },
     {
       "id": 27,
-      "nombre": "D Eme",
+      "nombre": "Silvio Araujo",
+      "telefono": "+12079550436",
+      "telegram_id": "8869151276",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-25 13:35:44.528631",
+      "actualizado": "2026-05-25 13:43:09.349"
+    },
+    {
+      "id": 28,
+      "nombre": "Dany Arturo (Diquemo)",
       "telefono": "+584128478793",
       "telegram_id": "6168126121",
       "telegram_username": null,
       "activo": true,
       "notas": null,
-      "registrado": "2026-05-27 17:17:04.038599",
-      "actualizado": "2026-05-27 17:17:04.038599"
+      "registrado": "2026-05-28 12:36:45.916599",
+      "actualizado": "2026-05-28 12:36:45.916599"
+    },
+    {
+      "id": 29,
+      "nombre": "Leonela Alejandra",
+      "telefono": "+584247655190",
+      "telegram_id": "8055002909",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-28 20:14:35.144725",
+      "actualizado": "2026-05-28 20:14:35.144725"
+    },
+    {
+      "id": 30,
+      "nombre": "Andreina Ardila",
+      "telefono": "+584147102871",
+      "telegram_id": "6758683671",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-29 13:37:59.435627",
+      "actualizado": "2026-05-29 13:37:59.435627"
+    },
+    {
+      "id": 31,
+      "nombre": "Diana Araujo",
+      "telefono": "+584247388952",
+      "telegram_id": "7003562662",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-05-29 23:56:13.353351",
+      "actualizado": "2026-05-29 23:56:13.353351"
+    },
+    {
+      "id": 32,
+      "nombre": "Harvin Navarrete",
+      "telefono": "+584126912200",
+      "telegram_id": "8235996882",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-06-01 15:01:57.213785",
+      "actualizado": "2026-06-01 15:01:57.213785"
+    },
+    {
+      "id": 33,
+      "nombre": "Julio Cesar Sosa",
+      "telefono": "+16073795956",
+      "telegram_id": "8603037660",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-06-03 14:08:14.963423",
+      "actualizado": "2026-06-03 14:08:14.963423"
+    },
+    {
+      "id": 34,
+      "nombre": "Javier Sánchez",
+      "telefono": "+584147385005",
+      "telegram_id": "1564611350",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-06-03 20:28:17.436502",
+      "actualizado": "2026-06-03 20:28:17.436502"
+    },
+    {
+      "id": 35,
+      "nombre": "Agronorca",
+      "telefono": "+584140820496",
+      "telegram_id": "1454882668",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-06-04 19:31:01.498349",
+      "actualizado": "2026-06-04 19:31:01.498349"
+    },
+    {
+      "id": 36,
+      "nombre": "Angel Zambrano",
+      "telefono": "+584241525800",
+      "telegram_id": "8774303514",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-06-05 15:11:41.670165",
+      "actualizado": "2026-06-05 15:11:41.670165"
+    },
+    {
+      "id": 37,
+      "nombre": "Yorce Jiménez",
+      "telefono": "+584120838268",
+      "telegram_id": "5170430760",
+      "telegram_username": null,
+      "activo": true,
+      "notas": null,
+      "registrado": "2026-06-06 01:08:24.350734",
+      "actualizado": "2026-06-06 01:08:24.350734"
     }
   ]
 }

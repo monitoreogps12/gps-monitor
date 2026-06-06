@@ -5,10 +5,10 @@ generated = []
 id = "UqepKePrHrm7ps60OSOMO"
 uri = "file://clientes_backup.csv"
 type = "table"
-title = "Backup Clientes — GPS SISTEMA C.A. (CSV)"
+title = "Backup PRODUCCIÓN — 37 Clientes (CSV)"
 
 [[outputs]]
 id = "mRZ6smcTHqoHo9hLNQLu6"
 uri = "file://clientes_backup.json"
 type = "unspecified"
-title = "Backup Clientes — GPS SISTEMA C.A. (JSON)"
+title = "Backup PRODUCCIÓN — 37 Clientes (JSON)"
