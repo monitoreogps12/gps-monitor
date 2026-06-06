@@ -1,7 +1,8 @@
 {
-  "exportado": "6/6/2026, 11:01:52 a. m.",
+  "exportado": "6/6/2026, 11:05:08 a. m.",
   "fuente": "produccion",
   "total_clientes": 37,
+  "total_vehiculos_asignados": 145,
   "clientes": [
     {
       "id": 1,
@@ -12,7 +13,177 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:45.660846",
-      "actualizado": "2026-05-16 17:46:45.660846"
+      "actualizado": "2026-05-16 17:46:45.660846",
+      "vehiculos": [
+        {
+          "id": 114,
+          "device_id": "1037",
+          "device_name": "BARQ  CARRO CAVA (A11DF0S)",
+          "plate": "A11DF0S",
+          "asignado": "2026-05-25 13:52:56.516391"
+        },
+        {
+          "id": 115,
+          "device_id": "1038",
+          "device_name": "BARQ  CARRO CAVA (A11DF2S)",
+          "plate": "A11DF2S",
+          "asignado": "2026-05-25 13:52:56.957636"
+        },
+        {
+          "id": 116,
+          "device_id": "1039",
+          "device_name": "BARQ  DONGFENG",
+          "plate": "A15BN8D",
+          "asignado": "2026-05-25 13:52:57.34308"
+        },
+        {
+          "id": 117,
+          "device_id": "1040",
+          "device_name": "BARQ (A22CF6K)",
+          "plate": "A22CF6K",
+          "asignado": "2026-05-25 13:52:57.783017"
+        },
+        {
+          "id": 118,
+          "device_id": "1041",
+          "device_name": "BARQ (A47C07K)",
+          "plate": "A47C07K",
+          "asignado": "2026-05-25 13:52:58.159567"
+        },
+        {
+          "id": 119,
+          "device_id": "1043",
+          "device_name": "BARQ (A83BW1K)",
+          "plate": "A83BW1K",
+          "asignado": "2026-05-25 13:52:58.56031"
+        },
+        {
+          "id": 120,
+          "device_id": "1044",
+          "device_name": "BARQ (A84BW2K)",
+          "plate": "A84BW2K",
+          "asignado": "2026-05-25 13:52:58.915466"
+        },
+        {
+          "id": 121,
+          "device_id": "1045",
+          "device_name": "BARQ (A95CR7K)",
+          "plate": "A85CR7K",
+          "asignado": "2026-05-25 13:52:59.241078"
+        },
+        {
+          "id": 122,
+          "device_id": "1046",
+          "device_name": "BARQ (A97BO2K)",
+          "plate": "A97B02K",
+          "asignado": "2026-05-25 13:52:59.757259"
+        },
+        {
+          "id": 123,
+          "device_id": "1047",
+          "device_name": "BARQ (A99B08K)",
+          "plate": "A99B08K",
+          "asignado": "2026-05-25 13:53:00.112667"
+        },
+        {
+          "id": 124,
+          "device_id": "1049",
+          "device_name": "BARQ  (AC0J50P)",
+          "plate": "(AC0J51P)",
+          "asignado": "2026-05-25 13:53:00.995048"
+        },
+        {
+          "id": 125,
+          "device_id": "1050",
+          "device_name": "BARQ (AC0J56P)",
+          "plate": "AC0J56P",
+          "asignado": "2026-05-25 13:53:02.124222"
+        },
+        {
+          "id": 126,
+          "device_id": "1051",
+          "device_name": "BARQ (AC0J79P)",
+          "plate": "AC0J79P",
+          "asignado": "2026-05-25 13:53:02.468601"
+        },
+        {
+          "id": 127,
+          "device_id": "1052",
+          "device_name": "BARQ (AC9I57P)",
+          "plate": "AC9I57P",
+          "asignado": "2026-05-25 13:53:02.816423"
+        },
+        {
+          "id": 129,
+          "device_id": "1054",
+          "device_name": " BARQ  PARTNER (A23CR0A)",
+          "plate": "A23CR0A",
+          "asignado": "2026-05-25 13:53:06.037797"
+        },
+        {
+          "id": 130,
+          "device_id": "1055",
+          "device_name": "  BARQ TRITON (A67BA1S)",
+          "plate": "A67BA1S",
+          "asignado": "2026-05-25 13:53:06.322789"
+        },
+        {
+          "id": 131,
+          "device_id": "1056",
+          "device_name": "  BARQ TRITON (A45BE4G)",
+          "plate": "A45BE4G",
+          "asignado": "2026-05-25 13:53:06.620237"
+        },
+        {
+          "id": 132,
+          "device_id": "1057",
+          "device_name": "  BARQ TRITON (A95AD8E)",
+          "plate": "A95AD8E",
+          "asignado": "2026-05-25 13:53:07.513529"
+        },
+        {
+          "id": 133,
+          "device_id": "1493",
+          "device_name": "BARQ  (AF0B73R)",
+          "plate": "AF0B73R",
+          "asignado": "2026-05-25 13:53:07.916568"
+        },
+        {
+          "id": 134,
+          "device_id": "1502",
+          "device_name": "BARQ (AF0B76R)",
+          "plate": "AF0B76R",
+          "asignado": "2026-05-25 13:53:08.263206"
+        },
+        {
+          "id": 135,
+          "device_id": "1503",
+          "device_name": "  BARQ SUPER DUTY (A78AZ4D)",
+          "plate": "A78AZ4D",
+          "asignado": "2026-05-25 13:53:08.636181"
+        },
+        {
+          "id": 136,
+          "device_id": "1504",
+          "device_name": "BARQ (A64CV8G)",
+          "plate": "A64CV8G",
+          "asignado": "2026-05-25 13:53:09.496143"
+        },
+        {
+          "id": 137,
+          "device_id": "1505",
+          "device_name": "  BARQ NPR ( A52BV1D )",
+          "plate": "A52BV1D",
+          "asignado": "2026-05-25 13:53:10.019281"
+        },
+        {
+          "id": 138,
+          "device_id": "1655",
+          "device_name": "BARQ MERCEDES (A83BJ1A)",
+          "plate": "A83BJ1A",
+          "asignado": "2026-05-25 13:53:11.114852"
+        }
+      ]
     },
     {
       "id": 2,
@@ -23,7 +194,23 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:45.747216",
-      "actualizado": "2026-05-16 17:46:45.747216"
+      "actualizado": "2026-05-16 17:46:45.747216",
+      "vehiculos": [
+        {
+          "id": 112,
+          "device_id": "1120",
+          "device_name": "CORDOBA F-150 (A97AI0E)",
+          "plate": "A97AI0E",
+          "asignado": "2026-05-25 13:51:35.715261"
+        },
+        {
+          "id": 113,
+          "device_id": "1121",
+          "device_name": "CORDOBA MOTO VSTROM (DL650)",
+          "plate": "AM4P40A",
+          "asignado": "2026-05-25 13:51:42.891072"
+        }
+      ]
     },
     {
       "id": 3,
@@ -34,7 +221,30 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:45.793002",
-      "actualizado": "2026-05-16 17:46:45.793002"
+      "actualizado": "2026-05-16 17:46:45.793002",
+      "vehiculos": [
+        {
+          "id": 65,
+          "device_id": "1558",
+          "device_name": "WIRNELIA (VANS NEGRA)",
+          "plate": "A53EX9P",
+          "asignado": "2026-05-25 13:41:04.126385"
+        },
+        {
+          "id": 66,
+          "device_id": "1560",
+          "device_name": "WIRNELIA  (DONGFENG A85BP8D)",
+          "plate": "A85BP8D",
+          "asignado": "2026-05-25 13:41:04.578214"
+        },
+        {
+          "id": 67,
+          "device_id": "1569",
+          "device_name": "WIRNELIA (SUPER DUTY)",
+          "plate": "A02AR1F",
+          "asignado": "2026-05-25 13:41:05.021525"
+        }
+      ]
     },
     {
       "id": 4,
@@ -45,7 +255,23 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:45.840971",
-      "actualizado": "2026-05-16 17:46:45.840971"
+      "actualizado": "2026-05-16 17:46:45.840971",
+      "vehiculos": [
+        {
+          "id": 110,
+          "device_id": "1208",
+          "device_name": "GRUA MITSUBISHI (A01A83E)",
+          "plate": "A01A83E",
+          "asignado": "2026-05-25 13:51:06.278304"
+        },
+        {
+          "id": 111,
+          "device_id": "1206",
+          "device_name": "GRUA C-31 (A00A74B)",
+          "plate": "A00A74B",
+          "asignado": "2026-05-25 13:51:14.021506"
+        }
+      ]
     },
     {
       "id": 5,
@@ -56,7 +282,51 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:45.894036",
-      "actualizado": "2026-05-16 17:46:45.894036"
+      "actualizado": "2026-05-16 17:46:45.894036",
+      "vehiculos": [
+        {
+          "id": 68,
+          "device_id": "1536",
+          "device_name": "VIGIA ( MOTO A80BW2K )",
+          "plate": "A80BW2K",
+          "asignado": "2026-05-25 13:41:16.32273"
+        },
+        {
+          "id": 69,
+          "device_id": "1539",
+          "device_name": "VIGIA ( MOTO A23CF2K )",
+          "plate": "A23CF2K",
+          "asignado": "2026-05-25 13:41:16.643751"
+        },
+        {
+          "id": 70,
+          "device_id": "1538",
+          "device_name": "VIGIA ( MOTO A70CV0G )",
+          "plate": "A70CV0G",
+          "asignado": "2026-05-25 13:41:17.521469"
+        },
+        {
+          "id": 71,
+          "device_id": "1540",
+          "device_name": "VIGIA ( MOTO A22CF5K )",
+          "plate": "A22CF5K",
+          "asignado": "2026-05-25 13:41:17.87888"
+        },
+        {
+          "id": 72,
+          "device_id": "1541",
+          "device_name": "VIGIA ( NPR A81AP9V )",
+          "plate": "A81AP9V",
+          "asignado": "2026-05-25 13:41:18.187905"
+        },
+        {
+          "id": 73,
+          "device_id": "1570",
+          "device_name": "VIGIA ( MOTO AC9J0EP )",
+          "plate": "AC9J03P",
+          "asignado": "2026-05-25 13:41:18.585135"
+        }
+      ]
     },
     {
       "id": 6,
@@ -67,7 +337,23 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:45.94597",
-      "actualizado": "2026-05-16 17:46:45.94597"
+      "actualizado": "2026-05-16 17:46:45.94597",
+      "vehiculos": [
+        {
+          "id": 105,
+          "device_id": "1303",
+          "device_name": "P/C  MOTO (AC9I56P)",
+          "plate": "AC9I56P",
+          "asignado": "2026-05-25 13:45:49.249588"
+        },
+        {
+          "id": 106,
+          "device_id": "1554",
+          "device_name": "P/C MOTO (AC9JO4P)",
+          "plate": "AC9JO4P",
+          "asignado": "2026-05-25 13:45:49.474718"
+        }
+      ]
     },
     {
       "id": 7,
@@ -78,7 +364,44 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:45.989758",
-      "actualizado": "2026-05-16 17:46:45.989758"
+      "actualizado": "2026-05-16 17:46:45.989758",
+      "vehiculos": [
+        {
+          "id": 76,
+          "device_id": "984",
+          "device_name": "AGROLACTEOS  (FVR)",
+          "plate": "A68BD4A",
+          "asignado": "2026-05-25 13:41:34.72073"
+        },
+        {
+          "id": 77,
+          "device_id": "986",
+          "device_name": "AGROLACTEOS  NPR  (A00BC0H)",
+          "plate": "A00BC0H",
+          "asignado": "2026-05-25 13:41:35.114442"
+        },
+        {
+          "id": 78,
+          "device_id": "988",
+          "device_name": "AGROLACTEOS 1721 (A90A0RD)",
+          "plate": "A90AORD",
+          "asignado": "2026-05-25 13:41:35.462886"
+        },
+        {
+          "id": 79,
+          "device_id": "989",
+          "device_name": "AGROLACTEOS NPR CAVA  (A19AH1V)",
+          "plate": "A19AH1V",
+          "asignado": "2026-05-25 13:41:35.811682"
+        },
+        {
+          "id": 80,
+          "device_id": "1400",
+          "device_name": "AGROLACTEOS HYUNDAI (A08CU1A)",
+          "plate": ": A08CU1A",
+          "asignado": "2026-05-25 13:41:36.159331"
+        }
+      ]
     },
     {
       "id": 8,
@@ -89,7 +412,23 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.033664",
-      "actualizado": "2026-05-16 17:46:46.033664"
+      "actualizado": "2026-05-16 17:46:46.033664",
+      "vehiculos": [
+        {
+          "id": 74,
+          "device_id": "1169",
+          "device_name": "ERIE (NPR)",
+          "plate": "A61AG3E",
+          "asignado": "2026-05-25 13:41:26.11269"
+        },
+        {
+          "id": 75,
+          "device_id": "1199",
+          "device_name": "ERIE (CARGO 1721)",
+          "plate": "A75BM6A",
+          "asignado": "2026-05-25 13:41:26.401617"
+        }
+      ]
     },
     {
       "id": 9,
@@ -100,7 +439,79 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.079337",
-      "actualizado": "2026-05-16 17:46:46.079337"
+      "actualizado": "2026-05-16 17:46:46.079337",
+      "vehiculos": [
+        {
+          "id": 95,
+          "device_id": "1350",
+          "device_name": "VALERA MOTO (A92CR2K)",
+          "plate": "A92CR2K",
+          "asignado": "2026-05-25 13:45:37.55282"
+        },
+        {
+          "id": 96,
+          "device_id": "1351",
+          "device_name": "VALERA MOTO (A92CR7K)",
+          "plate": "A92CR7K",
+          "asignado": "2026-05-25 13:45:38.23658"
+        },
+        {
+          "id": 97,
+          "device_id": "1352",
+          "device_name": "VALERA MOTO (A97BO6K)",
+          "plate": "A97BO6K",
+          "asignado": "2026-05-25 13:45:38.601993"
+        },
+        {
+          "id": 98,
+          "device_id": "1353",
+          "device_name": "VALERA MOTO (A98B09K)",
+          "plate": "A98B09K",
+          "asignado": "2026-05-25 13:45:39.034301"
+        },
+        {
+          "id": 99,
+          "device_id": "1354",
+          "device_name": "VALERA MOTO (AC9I55P)",
+          "plate": "AC9I55P",
+          "asignado": "2026-05-25 13:45:39.287846"
+        },
+        {
+          "id": 100,
+          "device_id": "1355",
+          "device_name": "VALERA MOTO (AC9I59P)",
+          "plate": "QC9I59P",
+          "asignado": "2026-05-25 13:45:39.631464"
+        },
+        {
+          "id": 101,
+          "device_id": "1356",
+          "device_name": "VALERA SUPER DUTY (A72BH1S)",
+          "plate": "A72BM1S",
+          "asignado": "2026-05-25 13:45:40.009711"
+        },
+        {
+          "id": 102,
+          "device_id": "1506",
+          "device_name": "VALERA JAC (A64CT1K)",
+          "plate": "A64CT1K",
+          "asignado": "2026-05-25 13:45:40.346072"
+        },
+        {
+          "id": 103,
+          "device_id": "1507",
+          "device_name": "VALERA IVECO (A07BF1P)",
+          "plate": "A07BF1P",
+          "asignado": "2026-05-25 13:45:41.231801"
+        },
+        {
+          "id": 104,
+          "device_id": "1508",
+          "device_name": "VALERA IVECO ( A80BG5D )",
+          "plate": "A80BG5D",
+          "asignado": "2026-05-25 13:45:41.560875"
+        }
+      ]
     },
     {
       "id": 10,
@@ -111,7 +522,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.129004",
-      "actualizado": "2026-05-16 17:46:46.129004"
+      "actualizado": "2026-05-16 17:46:46.129004",
+      "vehiculos": [
+        {
+          "id": 109,
+          "device_id": "1449",
+          "device_name": "HENRY FVR (A77BA4A)",
+          "plate": "A87AH6V",
+          "asignado": "2026-05-25 13:50:00.708175"
+        }
+      ]
     },
     {
       "id": 11,
@@ -122,7 +542,30 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.173514",
-      "actualizado": "2026-05-16 17:46:46.173514"
+      "actualizado": "2026-05-16 17:46:46.173514",
+      "vehiculos": [
+        {
+          "id": 81,
+          "device_id": "1246",
+          "device_name": "JOHANA R  (AVEO )",
+          "plate": "AB766BI",
+          "asignado": "2026-05-25 13:41:42.785211"
+        },
+        {
+          "id": 82,
+          "device_id": "1248",
+          "device_name": "JOHANA R (FORD EXPLORER)",
+          "plate": "AA714TH",
+          "asignado": "2026-05-25 13:41:43.128839"
+        },
+        {
+          "id": 83,
+          "device_id": "1636",
+          "device_name": "JOHANA  R (FORTUNER )",
+          "plate": "AB969HB",
+          "asignado": "2026-05-25 13:41:43.539306"
+        }
+      ]
     },
     {
       "id": 12,
@@ -133,7 +576,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.218636",
-      "actualizado": "2026-05-16 17:46:46.218636"
+      "actualizado": "2026-05-16 17:46:46.218636",
+      "vehiculos": [
+        {
+          "id": 94,
+          "device_id": "1578",
+          "device_name": "CARLOS G FORTUNER (AB711BE)",
+          "plate": "AB711BE",
+          "asignado": "2026-05-25 13:43:47.447869"
+        }
+      ]
     },
     {
       "id": 13,
@@ -144,7 +596,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.263832",
-      "actualizado": "2026-05-16 17:46:46.263832"
+      "actualizado": "2026-05-16 17:46:46.263832",
+      "vehiculos": [
+        {
+          "id": 108,
+          "device_id": "1240",
+          "device_name": "JAVIER J  (NPR  A23AY1V)",
+          "plate": "A23AY1V",
+          "asignado": "2026-05-25 13:48:53.529237"
+        }
+      ]
     },
     {
       "id": 14,
@@ -155,7 +616,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.311925",
-      "actualizado": "2026-05-16 17:46:46.311925"
+      "actualizado": "2026-05-16 17:46:46.311925",
+      "vehiculos": [
+        {
+          "id": 139,
+          "device_id": "1568",
+          "device_name": "JOSE PEREZ MOTO (AH3W26T)",
+          "plate": "AH3W26",
+          "asignado": "2026-05-25 13:53:39.036631"
+        }
+      ]
     },
     {
       "id": 15,
@@ -166,7 +636,44 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.355507",
-      "actualizado": "2026-05-16 17:46:46.355507"
+      "actualizado": "2026-05-16 17:46:46.355507",
+      "vehiculos": [
+        {
+          "id": 88,
+          "device_id": "1643",
+          "device_name": "JEAN (A04AG8D)",
+          "plate": "A04AG8D",
+          "asignado": "2026-05-25 13:43:17.249192"
+        },
+        {
+          "id": 89,
+          "device_id": "1701",
+          "device_name": "JEAN (A78AF7D)",
+          "plate": "A78AF7D",
+          "asignado": "2026-05-25 13:43:17.526291"
+        },
+        {
+          "id": 90,
+          "device_id": "1703",
+          "device_name": "JEAN MACK (A78AF6D)",
+          "plate": "A78AF6D",
+          "asignado": "2026-05-25 13:43:17.817881"
+        },
+        {
+          "id": 91,
+          "device_id": "1709",
+          "device_name": "JEAN MACK (A78AF8D)",
+          "plate": "A78AF8D",
+          "asignado": "2026-05-25 13:43:19.355934"
+        },
+        {
+          "id": 92,
+          "device_id": "1710",
+          "device_name": "JEAN MACK (A79AF0D)",
+          "plate": "A79AF0D",
+          "asignado": "2026-05-25 13:43:19.657028"
+        }
+      ]
     },
     {
       "id": 16,
@@ -177,7 +684,30 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.399317",
-      "actualizado": "2026-05-16 17:46:46.399317"
+      "actualizado": "2026-05-16 17:46:46.399317",
+      "vehiculos": [
+        {
+          "id": 84,
+          "device_id": "1681",
+          "device_name": "PEDRO TOYOTA (AC125GP)",
+          "plate": "AC1250GP",
+          "asignado": "2026-05-25 13:41:53.839395"
+        },
+        {
+          "id": 85,
+          "device_id": "1688",
+          "device_name": "PEDRO MITSUBISHI L200 (GNB-89522)",
+          "plate": "GNB-89522",
+          "asignado": "2026-05-25 13:41:54.170377"
+        },
+        {
+          "id": 86,
+          "device_id": "1689",
+          "device_name": "PEDRO TAHOE (AH143XG)",
+          "plate": "AH143XG",
+          "asignado": "2026-05-25 13:41:54.547418"
+        }
+      ]
     },
     {
       "id": 17,
@@ -188,7 +718,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.446779",
-      "actualizado": "2026-05-16 17:46:46.446779"
+      "actualizado": "2026-05-16 17:46:46.446779",
+      "vehiculos": [
+        {
+          "id": 87,
+          "device_id": "1695",
+          "device_name": "ORELIO JAC (GNB 1070)",
+          "plate": "GNB 1070",
+          "asignado": "2026-05-25 13:42:07.820242"
+        }
+      ]
     },
     {
       "id": 18,
@@ -199,7 +738,79 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.510648",
-      "actualizado": "2026-05-16 17:46:46.510648"
+      "actualizado": "2026-05-16 17:46:46.510648",
+      "vehiculos": [
+        {
+          "id": 173,
+          "device_id": "1069",
+          "device_name": "HILUX BLANCA A04CP5D)",
+          "plate": "A04CP5D",
+          "asignado": "2026-05-25 13:57:03.790769"
+        },
+        {
+          "id": 174,
+          "device_id": "1070",
+          "device_name": "C-3500 BLANCO A25AM9V)",
+          "plate": "A25AM9V",
+          "asignado": "2026-05-25 13:57:07.937931"
+        },
+        {
+          "id": 175,
+          "device_id": "1483",
+          "device_name": "RAV 4 PLATA AH816TV)",
+          "plate": "AH816TV",
+          "asignado": "2026-05-25 13:57:12.564106"
+        },
+        {
+          "id": 176,
+          "device_id": "1067",
+          "device_name": "CHERY X1 A5706SM)",
+          "plate": "AH706SM",
+          "asignado": "2026-05-25 13:57:15.230624"
+        },
+        {
+          "id": 177,
+          "device_id": "1511",
+          "device_name": "4RUNNER BLINDADA",
+          "plate": "AB739NG",
+          "asignado": "2026-05-25 13:57:18.784606"
+        },
+        {
+          "id": 178,
+          "device_id": "1590",
+          "device_name": "4RUNNER BLANCA (AJ573TM)",
+          "plate": "AJ573TM",
+          "asignado": "2026-05-25 13:57:19.139364"
+        },
+        {
+          "id": 179,
+          "device_id": "1512",
+          "device_name": "FORTUNER DAYA",
+          "plate": "(AB357PB)",
+          "asignado": "2026-05-25 13:57:23.512732"
+        },
+        {
+          "id": 180,
+          "device_id": "1071",
+          "device_name": "TACOMA GRIS A73AK6J)",
+          "plate": "A73AK6J",
+          "asignado": "2026-05-25 13:57:29.548824"
+        },
+        {
+          "id": 181,
+          "device_id": "1075",
+          "device_name": "NPR GRANDE A89AB5J)",
+          "plate": "A89AB5J",
+          "asignado": "2026-05-25 13:57:40.737872"
+        },
+        {
+          "id": 182,
+          "device_id": "1074",
+          "device_name": "MACK TIBURON A19BI4D)",
+          "plate": "A19BI4D",
+          "asignado": "2026-05-25 13:57:43.758843"
+        }
+      ]
     },
     {
       "id": 19,
@@ -210,7 +821,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.558596",
-      "actualizado": "2026-05-16 17:46:46.558596"
+      "actualizado": "2026-05-16 17:46:46.558596",
+      "vehiculos": [
+        {
+          "id": 93,
+          "device_id": "1684",
+          "device_name": "JOSE RAMIREZ  TRITON (A68AR1M)",
+          "plate": "A68AR1M",
+          "asignado": "2026-05-25 13:43:38.699048"
+        }
+      ]
     },
     {
       "id": 20,
@@ -221,7 +841,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.605973",
-      "actualizado": "2026-05-16 17:46:46.605973"
+      "actualizado": "2026-05-16 17:46:46.605973",
+      "vehiculos": [
+        {
+          "id": 107,
+          "device_id": "1253",
+          "device_name": "JOSE ANGEL D (FVR)",
+          "plate": "A32AN8K",
+          "asignado": "2026-05-25 13:48:00.636707"
+        }
+      ]
     },
     {
       "id": 21,
@@ -232,7 +861,79 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.648066",
-      "actualizado": "2026-05-16 17:46:46.648066"
+      "actualizado": "2026-05-16 17:46:46.648066",
+      "vehiculos": [
+        {
+          "id": 163,
+          "device_id": "1511",
+          "device_name": "4RUNNER BLINDADA",
+          "plate": "AB739NG",
+          "asignado": "2026-05-25 13:55:41.825698"
+        },
+        {
+          "id": 164,
+          "device_id": "1590",
+          "device_name": "4RUNNER BLANCA (AJ573TM)",
+          "plate": "AJ573TM",
+          "asignado": "2026-05-25 13:55:42.403827"
+        },
+        {
+          "id": 165,
+          "device_id": "1512",
+          "device_name": "FORTUNER DAYA",
+          "plate": "(AB357PB)",
+          "asignado": "2026-05-25 13:55:49.795932"
+        },
+        {
+          "id": 166,
+          "device_id": "1071",
+          "device_name": "TACOMA GRIS A73AK6J)",
+          "plate": "A73AK6J",
+          "asignado": "2026-05-25 13:55:56.406949"
+        },
+        {
+          "id": 167,
+          "device_id": "1074",
+          "device_name": "MACK TIBURON A19BI4D)",
+          "plate": "A19BI4D",
+          "asignado": "2026-05-25 13:56:00.732457"
+        },
+        {
+          "id": 168,
+          "device_id": "1075",
+          "device_name": "NPR GRANDE A89AB5J)",
+          "plate": "A89AB5J",
+          "asignado": "2026-05-25 13:56:04.364454"
+        },
+        {
+          "id": 169,
+          "device_id": "1067",
+          "device_name": "CHERY X1 A5706SM)",
+          "plate": "AH706SM",
+          "asignado": "2026-05-25 13:56:09.660088"
+        },
+        {
+          "id": 170,
+          "device_id": "1483",
+          "device_name": "RAV 4 PLATA AH816TV)",
+          "plate": "AH816TV",
+          "asignado": "2026-05-25 13:56:13.058762"
+        },
+        {
+          "id": 171,
+          "device_id": "1069",
+          "device_name": "HILUX BLANCA A04CP5D)",
+          "plate": "A04CP5D",
+          "asignado": "2026-05-25 13:56:18.387335"
+        },
+        {
+          "id": 172,
+          "device_id": "1070",
+          "device_name": "C-3500 BLANCO A25AM9V)",
+          "plate": "A25AM9V",
+          "asignado": "2026-05-25 13:56:48.779982"
+        }
+      ]
     },
     {
       "id": 22,
@@ -243,7 +944,128 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.693438",
-      "actualizado": "2026-05-16 17:46:46.693438"
+      "actualizado": "2026-05-16 17:46:46.693438",
+      "vehiculos": [
+        {
+          "id": 140,
+          "device_id": "889",
+          "device_name": "ENDER (A00BC3D)",
+          "plate": "A00BC3D",
+          "asignado": "2026-05-25 13:54:06.795567"
+        },
+        {
+          "id": 141,
+          "device_id": "1155",
+          "device_name": "ENDER ( A65CA6A )",
+          "plate": "A65CA6A",
+          "asignado": "2026-05-25 13:54:07.422319"
+        },
+        {
+          "id": 142,
+          "device_id": "1158",
+          "device_name": "ENDER (A46DT2V)",
+          "plate": "A46DT2V",
+          "asignado": "2026-05-25 13:54:07.874142"
+        },
+        {
+          "id": 143,
+          "device_id": "1161",
+          "device_name": "ENDER (A72AF0A)",
+          "plate": "(A72AF0A)",
+          "asignado": "2026-05-25 13:54:08.237504"
+        },
+        {
+          "id": 144,
+          "device_id": "1164",
+          "device_name": "ENDER ",
+          "plate": "",
+          "asignado": "2026-05-25 13:54:08.62588"
+        },
+        {
+          "id": 145,
+          "device_id": "1165",
+          "device_name": "ENDER (A98AE7B)",
+          "plate": "A98AE7B",
+          "asignado": "2026-05-25 13:54:09.021904"
+        },
+        {
+          "id": 146,
+          "device_id": "1168",
+          "device_name": "ENDER ( A00BC9D )",
+          "plate": "A00BC9D",
+          "asignado": "2026-05-25 13:54:10.330435"
+        },
+        {
+          "id": 147,
+          "device_id": "1282",
+          "device_name": "ENDER (A74B01M)",
+          "plate": "(A74B01M)",
+          "asignado": "2026-05-25 13:54:11.03737"
+        },
+        {
+          "id": 148,
+          "device_id": "1443",
+          "device_name": "ENDER (A33EV6A)",
+          "plate": "(A33EV6A)",
+          "asignado": "2026-05-25 13:54:11.619884"
+        },
+        {
+          "id": 149,
+          "device_id": "1446",
+          "device_name": "ENDER (A85BB8K)",
+          "plate": "A85BB8K",
+          "asignado": "2026-05-25 13:54:12.456455"
+        },
+        {
+          "id": 150,
+          "device_id": "1492",
+          "device_name": "ENDER (CARGO 815 A97BG1V)",
+          "plate": "A97BG1V",
+          "asignado": "2026-05-25 13:54:12.814463"
+        },
+        {
+          "id": 151,
+          "device_id": "1496",
+          "device_name": "ENDER (FVR A59AO3J)",
+          "plate": "A59AO3J",
+          "asignado": "2026-05-25 13:54:13.918324"
+        },
+        {
+          "id": 152,
+          "device_id": "1498",
+          "device_name": "ENDER (F-350 A19BJ2D)",
+          "plate": "A19BJ2D",
+          "asignado": "2026-05-25 13:54:14.196776"
+        },
+        {
+          "id": 153,
+          "device_id": "1513",
+          "device_name": "ENDER ( A23AO1D )",
+          "plate": "A23AO1D",
+          "asignado": "2026-05-25 13:54:15.291013"
+        },
+        {
+          "id": 154,
+          "device_id": "1517",
+          "device_name": "ENDER (A71AF8A)",
+          "plate": "A71AF8A",
+          "asignado": "2026-05-25 13:54:15.551408"
+        },
+        {
+          "id": 155,
+          "device_id": "1547",
+          "device_name": "ENDER (CARGO 1721 A85BK2V)",
+          "plate": "A85BK2V",
+          "asignado": "2026-05-25 13:54:16.007236"
+        },
+        {
+          "id": 156,
+          "device_id": "1628",
+          "device_name": "ENDER (HINO A34EH2A)",
+          "plate": "A34EH2A",
+          "asignado": "2026-05-25 13:54:16.393531"
+        }
+      ]
     },
     {
       "id": 23,
@@ -254,7 +1076,51 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.742157",
-      "actualizado": "2026-05-16 17:46:46.742157"
+      "actualizado": "2026-05-16 17:46:46.742157",
+      "vehiculos": [
+        {
+          "id": 157,
+          "device_id": "1434",
+          "device_name": "( JAC A10DC3K )",
+          "plate": "A10DC3K",
+          "asignado": "2026-05-25 13:54:57.713792"
+        },
+        {
+          "id": 158,
+          "device_id": "1429",
+          "device_name": "( JAC A40BC9P )",
+          "plate": "A40BC9P",
+          "asignado": "2026-05-25 13:55:04.919175"
+        },
+        {
+          "id": 159,
+          "device_id": "970",
+          "device_name": "( JAC A75DZ1A ) ",
+          "plate": "A75DZ1A",
+          "asignado": "2026-05-25 13:55:13.060979"
+        },
+        {
+          "id": 160,
+          "device_id": "975",
+          "device_name": "( NKR A07DF4K ) ",
+          "plate": "A07DF4K",
+          "asignado": "2026-05-25 13:55:18.858436"
+        },
+        {
+          "id": 161,
+          "device_id": "976",
+          "device_name": "( NPR A94AR3V ) ",
+          "plate": "A94AR3V",
+          "asignado": "2026-05-25 13:55:25.291648"
+        },
+        {
+          "id": 162,
+          "device_id": "1479",
+          "device_name": "(JAC A00DI3K)",
+          "plate": "A00DI3K",
+          "asignado": "2026-05-25 13:55:31.089468"
+        }
+      ]
     },
     {
       "id": 24,
@@ -265,7 +1131,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.789753",
-      "actualizado": "2026-05-16 17:46:46.789753"
+      "actualizado": "2026-05-16 17:46:46.789753",
+      "vehiculos": [
+        {
+          "id": 64,
+          "device_id": "1280",
+          "device_name": "RICARDO ( SPARK )",
+          "plate": "",
+          "asignado": "2026-05-25 13:40:53.95286"
+        }
+      ]
     },
     {
       "id": 25,
@@ -276,7 +1151,37 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:46:46.837714",
-      "actualizado": "2026-05-16 17:46:46.837714"
+      "actualizado": "2026-05-16 17:46:46.837714",
+      "vehiculos": [
+        {
+          "id": 59,
+          "device_id": "882",
+          "device_name": "GPS SISTEMA",
+          "plate": "AD721ZS",
+          "asignado": "2026-05-25 13:32:38.638492"
+        },
+        {
+          "id": 60,
+          "device_id": "1228",
+          "device_name": "MAYRA ( MOTO VENTO )",
+          "plate": "VENTO 300",
+          "asignado": "2026-05-25 13:32:46.351729"
+        },
+        {
+          "id": 61,
+          "device_id": "993",
+          "device_name": "OLINTO ( TX )",
+          "plate": "",
+          "asignado": "2026-05-25 13:32:49.130154"
+        },
+        {
+          "id": 62,
+          "device_id": "1301",
+          "device_name": "OLINTO ( KLR )",
+          "plate": "",
+          "asignado": "2026-05-25 13:32:51.858433"
+        }
+      ]
     },
     {
       "id": 26,
@@ -287,7 +1192,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-16 17:50:46.79513",
-      "actualizado": "2026-06-05 21:27:20.761"
+      "actualizado": "2026-06-05 21:27:20.761",
+      "vehiculos": [
+        {
+          "id": 201,
+          "device_id": "1228",
+          "device_name": "MAYRA ( MOTO VENTO )",
+          "plate": "VENTO 300",
+          "asignado": "2026-06-01 15:33:32.161434"
+        }
+      ]
     },
     {
       "id": 27,
@@ -298,7 +1212,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-25 13:35:44.528631",
-      "actualizado": "2026-05-25 13:43:09.349"
+      "actualizado": "2026-05-25 13:43:09.349",
+      "vehiculos": [
+        {
+          "id": 63,
+          "device_id": "1445",
+          "device_name": "SILVIO (NPR A02AF7T)",
+          "plate": "A02AF7T",
+          "asignado": "2026-05-25 13:40:44.540512"
+        }
+      ]
     },
     {
       "id": 28,
@@ -309,7 +1232,51 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-28 12:36:45.916599",
-      "actualizado": "2026-05-28 12:36:45.916599"
+      "actualizado": "2026-05-28 12:36:45.916599",
+      "vehiculos": [
+        {
+          "id": 183,
+          "device_id": "1129",
+          "device_name": "DANY D  SILVERADO CAVA ",
+          "plate": "A53AK4K",
+          "asignado": "2026-05-28 12:36:51.667215"
+        },
+        {
+          "id": 184,
+          "device_id": "1130",
+          "device_name": "DANY D  NPR",
+          "plate": "A65AL9K",
+          "asignado": "2026-05-28 12:36:52.112497"
+        },
+        {
+          "id": 185,
+          "device_id": "1131",
+          "device_name": "DANY D 4RUNNER",
+          "plate": "AE879AK",
+          "asignado": "2026-05-28 12:36:52.658331"
+        },
+        {
+          "id": 186,
+          "device_id": "1615",
+          "device_name": "DANY D HYUNDAI",
+          "plate": "A0428JA",
+          "asignado": "2026-05-28 12:36:53.404224"
+        },
+        {
+          "id": 187,
+          "device_id": "1719",
+          "device_name": "DANY D HILUX",
+          "plate": "A81BZ5S",
+          "asignado": "2026-05-28 12:36:53.809877"
+        },
+        {
+          "id": 188,
+          "device_id": "1720",
+          "device_name": "DANY EXPLORER",
+          "plate": "AYH227SA",
+          "asignado": "2026-05-28 12:36:54.781081"
+        }
+      ]
     },
     {
       "id": 29,
@@ -320,7 +1287,8 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-28 20:14:35.144725",
-      "actualizado": "2026-05-28 20:14:35.144725"
+      "actualizado": "2026-05-28 20:14:35.144725",
+      "vehiculos": []
     },
     {
       "id": 30,
@@ -331,7 +1299,30 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-29 13:37:59.435627",
-      "actualizado": "2026-05-29 13:37:59.435627"
+      "actualizado": "2026-05-29 13:37:59.435627",
+      "vehiculos": [
+        {
+          "id": 194,
+          "device_id": "1442",
+          "device_name": "LRR (NPR A96AW3V)",
+          "plate": "A96AW3V",
+          "asignado": "2026-05-29 13:50:38.816694"
+        },
+        {
+          "id": 195,
+          "device_id": "1357",
+          "device_name": "VICTOR M  FVR  (A85AX8A)",
+          "plate": "A85AX8A",
+          "asignado": "2026-05-29 13:50:47.062524"
+        },
+        {
+          "id": 196,
+          "device_id": "1358",
+          "device_name": "VICTOR M  NPR (A80AB5G)",
+          "plate": "A80AB5G",
+          "asignado": "2026-05-29 13:50:50.595757"
+        }
+      ]
     },
     {
       "id": 31,
@@ -342,7 +1333,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-05-29 23:56:13.353351",
-      "actualizado": "2026-05-29 23:56:13.353351"
+      "actualizado": "2026-05-29 23:56:13.353351",
+      "vehiculos": [
+        {
+          "id": 199,
+          "device_id": "1445",
+          "device_name": "SILVIO (NPR A02AF7T)",
+          "plate": "A02AF7T",
+          "asignado": "2026-05-30 14:31:15.383907"
+        }
+      ]
     },
     {
       "id": 32,
@@ -353,7 +1353,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-06-01 15:01:57.213785",
-      "actualizado": "2026-06-01 15:01:57.213785"
+      "actualizado": "2026-06-01 15:01:57.213785",
+      "vehiculos": [
+        {
+          "id": 200,
+          "device_id": "1721",
+          "device_name": "FIESTA (AA975SL)",
+          "plate": ": AA975SL",
+          "asignado": "2026-06-01 15:16:40.430617"
+        }
+      ]
     },
     {
       "id": 33,
@@ -364,7 +1373,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-06-03 14:08:14.963423",
-      "actualizado": "2026-06-03 14:08:14.963423"
+      "actualizado": "2026-06-03 14:08:14.963423",
+      "vehiculos": [
+        {
+          "id": 202,
+          "device_id": "1154",
+          "device_name": "F-150 (A27CR8V)",
+          "plate": "A27CR8V",
+          "asignado": "2026-06-03 14:09:57.045794"
+        }
+      ]
     },
     {
       "id": 34,
@@ -375,7 +1393,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-06-03 20:28:17.436502",
-      "actualizado": "2026-06-03 20:28:17.436502"
+      "actualizado": "2026-06-03 20:28:17.436502",
+      "vehiculos": [
+        {
+          "id": 203,
+          "device_id": "1235",
+          "device_name": "JAVIER SANCHEZ ( A62AW9S )",
+          "plate": "A62AW9S",
+          "asignado": "2026-06-03 20:28:36.774202"
+        }
+      ]
     },
     {
       "id": 35,
@@ -386,7 +1413,37 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-06-04 19:31:01.498349",
-      "actualizado": "2026-06-04 19:31:01.498349"
+      "actualizado": "2026-06-04 19:31:01.498349",
+      "vehiculos": [
+        {
+          "id": 205,
+          "device_id": "1281",
+          "device_name": "LEONAL STRALIS (A56AH5N)",
+          "plate": "A56AH5N",
+          "asignado": "2026-06-05 15:16:12.293155"
+        },
+        {
+          "id": 206,
+          "device_id": "1285",
+          "device_name": "LEONAL HINO",
+          "plate": "A06AI6L",
+          "asignado": "2026-06-05 15:16:12.610191"
+        },
+        {
+          "id": 207,
+          "device_id": "1286",
+          "device_name": "LEONAL STRALIS (A55AH8N)",
+          "plate": "A55AH8N",
+          "asignado": "2026-06-05 15:16:13.039417"
+        },
+        {
+          "id": 208,
+          "device_id": "1386",
+          "device_name": "LEONAL STRALIS (A52AG5B)",
+          "plate": "A52AG5B",
+          "asignado": "2026-06-05 15:16:13.767663"
+        }
+      ]
     },
     {
       "id": 36,
@@ -397,7 +1454,16 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-06-05 15:11:41.670165",
-      "actualizado": "2026-06-05 15:11:41.670165"
+      "actualizado": "2026-06-05 15:11:41.670165",
+      "vehiculos": [
+        {
+          "id": 204,
+          "device_id": "1640",
+          "device_name": "ANGEL (SUPER DUTY)",
+          "plate": "A41BH9S",
+          "asignado": "2026-06-05 15:12:47.088122"
+        }
+      ]
     },
     {
       "id": 37,
@@ -408,7 +1474,30 @@
       "activo": true,
       "notas": null,
       "registrado": "2026-06-06 01:08:24.350734",
-      "actualizado": "2026-06-06 01:08:24.350734"
+      "actualizado": "2026-06-06 01:08:24.350734",
+      "vehiculos": [
+        {
+          "id": 209,
+          "device_id": "1390",
+          "device_name": "YORCE (ORLANDO)",
+          "plate": "AE822SG",
+          "asignado": "2026-06-06 14:21:42.470053"
+        },
+        {
+          "id": 210,
+          "device_id": "1592",
+          "device_name": "YORCE (MERCEDES A43AK4T)",
+          "plate": "A43AK4T",
+          "asignado": "2026-06-06 14:21:42.852099"
+        },
+        {
+          "id": 211,
+          "device_id": "1605",
+          "device_name": "YORCE (MACK A74AM5F)",
+          "plate": "A74AM5F",
+          "asignado": "2026-06-06 14:21:43.14235"
+        }
+      ]
     }
   ]
 }
