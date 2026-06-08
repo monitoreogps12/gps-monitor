@@ -250,10 +250,10 @@ async function launchWithRetry(
 
 // ─── Bot ─────────────────────────────────────────────────────────────────────
 
-export function startSupportBot(): void {
+export function startSupportBot(): import("telegraf").Telegraf | null {
   if (!TOKEN) {
     logger.warn("TELEGRAM_SUPPORT_BOT_TOKEN not set — support bot disabled");
-    return;
+    return null;
   }
 
   const bot = new Telegraf(TOKEN);
