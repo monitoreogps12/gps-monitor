@@ -5,7 +5,7 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL, ensure the database is provisioned");
 }
 
-const dbUrl = process.env.DATABASE_URL;
+const dbUrl = (process.env.APP_DATABASE_URL ?? process.env.DATABASE_URL)!;
 const needsSsl = dbUrl.includes("supabase") || dbUrl.includes("neon.tech");
 
 export default defineConfig({

@@ -4,13 +4,16 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
+// APP_DATABASE_URL takes priority over DATABASE_URL to avoid Replit's
+// managed-database injection overriding an externally-configured DB.
+const dbUrl = process.env.APP_DATABASE_URL ?? process.env.DATABASE_URL;
+
+if (!dbUrl) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "APP_DATABASE_URL (or DATABASE_URL) must be set.",
   );
 }
 
-const dbUrl = process.env.DATABASE_URL;
 const isSupabase = dbUrl.includes("supabase");
 const isNeon = dbUrl.includes("neon.tech");
 
