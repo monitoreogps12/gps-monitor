@@ -1,0 +1,1 @@
+- [Replit production DB connectivity](replit-production-db.md) — use APP_DATABASE_URL + Neon HTTP driver; Replit overrides DATABASE_URL and blocks port 5432 in production.
