@@ -10,15 +10,16 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+const isSupabase = process.env.DATABASE_URL.includes("supabase");
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
-  max: 10,
-  options: "--statement-timeout=15000",
-  ssl: process.env.DATABASE_URL?.includes("supabase")
-    ? { rejectUnauthorized: false }
-    : undefined,
+  max: 5,
+  ...(isSupabase
+    ? { ssl: { rejectUnauthorized: false } }
+    : { options: "--statement-timeout=15000" }),
 });
 export const db = drizzle(pool, { schema });
 
