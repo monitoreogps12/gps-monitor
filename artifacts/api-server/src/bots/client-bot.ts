@@ -160,10 +160,10 @@ async function launchWithRetry(
 
 // ─── Bot ─────────────────────────────────────────────────────────────────────
 
-export function startClientBot(): void {
+export function startClientBot(): import("telegraf").Telegraf | null {
   if (!TOKEN) {
     logger.warn("TELEGRAM_CLIENT_BOT_TOKEN not set, client bot disabled");
-    return;
+    return null;
   }
 
   const bot = new Telegraf(TOKEN);
@@ -578,8 +578,19 @@ export function startClientBot(): void {
   // Iniciar servicio de notificaciones automáticas ──────────────────────────
   startNotificationService(bot);
 
-  launchWithRetry(bot, "client");
+  // ─── Webhook setup (production) / polling fallback (dev) ─────────────────
+  const domain = (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0]?.trim();
+  if (domain) {
+    const webhookUrl = `https://${domain}/api/bot/client`;
+    void bot.telegram.setWebhook(webhookUrl)
+      .then(() => logger.info({ webhookUrl }, "Client bot webhook set"))
+      .catch((err: unknown) => logger.error({ err }, "Failed to set client bot webhook"));
+  } else {
+    void launchWithRetry(bot, "client");
+  }
 
   process.once("SIGINT", () => bot.stop("SIGINT"));
   process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
+  return bot;
 }

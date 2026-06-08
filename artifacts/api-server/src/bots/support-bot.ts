@@ -757,9 +757,19 @@ export function startSupportBot(): void {
     }
   });
 
-  // ─── Launch ───────────────────────────────────────────────────────────────
-  void launchWithRetry(bot, "support");
+  // ─── Webhook setup (production) / polling fallback (dev) ─────────────────
+  const domain = (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0]?.trim();
+  if (domain) {
+    const webhookUrl = `https://${domain}/api/bot/support`;
+    void bot.telegram.setWebhook(webhookUrl)
+      .then(() => logger.info({ webhookUrl }, "Support bot webhook set"))
+      .catch((err: unknown) => logger.error({ err }, "Failed to set support bot webhook"));
+  } else {
+    void launchWithRetry(bot, "support");
+  }
 
   process.once("SIGINT", () => bot.stop("SIGINT"));
   process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
+  return bot;
 }
