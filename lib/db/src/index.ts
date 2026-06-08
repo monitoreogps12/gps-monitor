@@ -10,14 +10,18 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-const isSupabase = process.env.DATABASE_URL.includes("supabase");
+const dbUrl = process.env.DATABASE_URL;
+const isSupabase = dbUrl.includes("supabase");
+const isNeon = dbUrl.includes("neon.tech");
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl,
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
   max: 5,
   ...(isSupabase
+    ? { ssl: { rejectUnauthorized: false } }
+    : isNeon
     ? { ssl: { rejectUnauthorized: false } }
     : { options: "--statement-timeout=15000" }),
 });

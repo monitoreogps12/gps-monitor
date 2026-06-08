@@ -5,13 +5,14 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL, ensure the database is provisioned");
 }
 
-const isSupabase = process.env.DATABASE_URL.includes("supabase");
+const dbUrl = process.env.DATABASE_URL;
+const needsSsl = dbUrl.includes("supabase") || dbUrl.includes("neon.tech");
 
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
-    ssl: isSupabase ? "require" : undefined,
+    url: dbUrl,
+    ssl: needsSsl ? "require" : undefined,
   },
 });
