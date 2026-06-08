@@ -16,6 +16,9 @@ export const pool = new Pool({
   idleTimeoutMillis: 30_000,
   max: 10,
   options: "--statement-timeout=15000",
+  ssl: process.env.DATABASE_URL?.includes("supabase")
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 export const db = drizzle(pool, { schema });
 
