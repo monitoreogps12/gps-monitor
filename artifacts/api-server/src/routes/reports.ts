@@ -9,11 +9,15 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+// ─── Date parsing ────────────────────────────────────────────────────────────
+
 function parseLastConnection(s: string): Date | null {
   if (!s || s === "N/A" || s.trim() === "") return null;
   try {
+    // ISO / standard format first
     const d = new Date(s);
     if (!isNaN(d.getTime())) return d;
+    // DD-MM-YYYY HH:MM:SS AM/PM (platform format)
     const m = s.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\s+(AM|PM)/i);
     if (!m) return null;
     let h = parseInt(m[4]!);
@@ -28,16 +32,34 @@ function daysSince(d: Date | null): number | null {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
+// ─── Category logic ──────────────────────────────────────────────────────────
+// A device is ACTIVO only if GPS platform reports active status AND the last
+// real GPS timestamp is ≤ 1 day ago. Vehicles from 2019/2021 that the platform
+// still shows as "moving" must be categorised by their actual days count.
+
 type Category = "activo" | "leve" | "atencion" | "grave" | "critico" | "sin_datos";
 
-function getCategory(isDisconnected: boolean, days: number | null): Category {
-  if (!isDisconnected) return "activo";
-  if (days === null) return "sin_datos";
-  if (days <= 6) return "leve";
+const ACTIVE_GPS = new Set(["moving", "ack", "engine_idle"]);
+
+function getCategory(gpsStatus: string, days: number | null): Category {
+  const platformActive = ACTIVE_GPS.has(gpsStatus);
+
+  if (days === null) {
+    // No timestamp at all — trust platform status
+    return platformActive ? "activo" : "sin_datos";
+  }
+
+  // Truly active: platform shows active AND last contact was ≤ 1 day ago
+  if (platformActive && days <= 1) return "activo";
+
+  // From here, device is effectively disconnected — categorise by days offline
+  if (days <= 6)  return "leve";
   if (days <= 30) return "atencion";
   if (days <= 90) return "grave";
   return "critico";
 }
+
+// ─── Build report ─────────────────────────────────────────────────────────────
 
 async function buildReportData() {
   const [devices, livePositions, clients, vehicles] = await Promise.all([
@@ -47,37 +69,41 @@ async function buildReportData() {
     db.select().from(clientVehiclesTable),
   ]);
 
-  const liveById = new Map(livePositions.map((p) => [p.id, p]));
-  const vehicleByDeviceId = new Map(vehicles.map((v) => [v.deviceId, v]));
-  const clientById = new Map(clients.map((c) => [c.id, c]));
+  const liveById         = new Map(livePositions.map((p) => [p.id, p]));
+  const vehicleByDevice  = new Map(vehicles.map((v) => [v.deviceId, v]));
+  const clientById       = new Map(clients.map((c) => [c.id, c]));
 
   return devices.map((device) => {
-    const live = liveById.get(device.id);
-    const dbVehicle = vehicleByDeviceId.get(device.id);
-    const client = dbVehicle ? clientById.get(dbVehicle.clientId) : null;
+    const live      = liveById.get(device.id);
+    const dbVehicle = vehicleByDevice.get(device.id);
+    const client    = dbVehicle ? clientById.get(dbVehicle.clientId) : null;
+
+    // Prefer live GPS timestamp; fall back to device.lastConnection only as last resort
     const lastConnectionStr = live?.lastConnection || device.lastConnection || "";
-    const lastDate = parseLastConnection(lastConnectionStr);
-    const days = daysSince(lastDate);
-    const isDisconnected = device.status === "disconnected_red" || device.status === "disconnected_blue";
+    const lastDate          = parseLastConnection(lastConnectionStr);
+    const days              = daysSince(lastDate);
+    const category          = getCategory(device.status, days);
 
     return {
-      deviceId: device.id,
-      name: live?.name || device.name,
-      plate: live?.plate || device.plate || dbVehicle?.plate || "",
-      imei: device.imei,
-      gpsStatus: device.status,
-      lastConnection: lastConnectionStr,
+      deviceId:        device.id,
+      name:            live?.name || device.name,
+      plate:           live?.plate || device.plate || dbVehicle?.plate || "",
+      imei:            device.imei,
+      gpsStatus:       device.status,
+      lastConnection:  lastConnectionStr,
       daysSinceContact: days,
-      category: getCategory(isDisconnected, days) as Category,
-      clientName: client?.name ?? null,
-      clientId: client?.id ?? null,
-      clientPhone: client?.phone ?? null,
-      lat: live?.lat ?? null,
-      lng: live?.lng ?? null,
-      speed: live?.speed ?? null,
+      category,
+      clientName:      client?.name ?? null,
+      clientId:        client?.id ?? null,
+      clientPhone:     client?.phone ?? null,
+      lat:             live?.lat ?? null,
+      lng:             live?.lng ?? null,
+      speed:           live?.speed ?? null,
     };
   });
 }
+
+// ─── GET /api/reports/data ───────────────────────────────────────────────────
 
 router.get("/data", async (req, res): Promise<void> => {
   try {
@@ -89,309 +115,302 @@ router.get("/data", async (req, res): Promise<void> => {
   }
 });
 
+// ─── Excel helpers ────────────────────────────────────────────────────────────
+
 const CATEGORY_LABELS: Record<Category, string> = {
-  critico: "CRÍTICO (>90 días)",
-  grave: "GRAVE (31-90 días)",
-  atencion: "ATENCIÓN (7-30 días)",
-  leve: "LEVE (1-6 días)",
-  activo: "ACTIVO",
+  critico:   "CRÍTICO  (>90 días)",
+  grave:     "GRAVE    (31–90 días)",
+  atencion:  "ATENCIÓN (7–30 días)",
+  leve:      "LEVE     (1–6 días)",
+  activo:    "ACTIVO",
   sin_datos: "SIN DATOS",
 };
 
-const CATEGORY_COLORS: Record<Category, string> = {
-  critico: "FFC0392B",
-  grave:   "FFD35400",
-  atencion:"FFF39C12",
-  leve:    "FF2980B9",
-  activo:  "FF27AE60",
-  sin_datos:"FF7F8C8D",
+const CAT_FG: Record<Category, string> = {
+  critico:   "FFC0392B",
+  grave:     "FFD35400",
+  atencion:  "FFF39C12",
+  leve:      "FF2980B9",
+  activo:    "FF27AE60",
+  sin_datos: "FF7F8C8D",
 };
 
-const CATEGORY_ROW_COLORS: Record<Category, string> = {
-  critico: "FFFCE4E4",
-  grave:   "FFFEF0E6",
-  atencion:"FFFFF8E1",
-  leve:    "FFE8F4FD",
-  activo:  "FFE9F7EF",
-  sin_datos:"FFF2F3F4",
+const CAT_ROW: Record<Category, string> = {
+  critico:   "FFFCE4E4",
+  grave:     "FFFEF0E6",
+  atencion:  "FFFFF8E1",
+  leve:      "FFE8F4FD",
+  activo:    "FFE9F7EF",
+  sin_datos: "FFF2F3F4",
 };
 
-const GPS_STATUS_LABELS: Record<string, string> = {
-  moving: "En Movimiento",
-  ack: "ACK / Encendido",
-  engine_idle: "Motor en Ralentí",
-  disconnected_red: "Sin Señal",
+const GPS_LABELS: Record<string, string> = {
+  moving:            "En Movimiento",
+  ack:               "ACK / Encendido",
+  engine_idle:       "Motor en Ralentí",
+  disconnected_red:  "Sin Señal",
   disconnected_blue: "Desconectado",
 };
 
-const OP_STATUS_LABELS: Record<string, string> = {
-  servicio:    "✅ En Servicio",
-  taller:      "🔧 En Taller",
-  revision:    "⚠️ Necesita Revisión",
-  baja:        "❌ Fuera de Servicio",
-  desconocido: "❓ Desconocido",
+const OP_LABELS: Record<string, string> = {
+  servicio:    "En Servicio",
+  taller:      "En Taller",
+  revision:    "Necesita Revisión",
+  baja:        "Fuera de Servicio",
+  desconocido: "Desconocido",
 };
 
-interface StatusEntry { status: string; notes: string; updatedAt: string; }
+interface StatusEntry { status: string; notes: string; }
 type StatusData = Record<string, StatusEntry>;
 
-function styleHeader(ws: ExcelJS.Worksheet, row: ExcelJS.Row, bgColor: string) {
-  row.eachCell((cell) => {
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+type ReportRow = Awaited<ReturnType<typeof buildReportData>>[number];
+
+function applyHeaderStyle(row: ExcelJS.Row, argb: string) {
+  row.eachCell({ includeEmpty: true }, (cell) => {
+    cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb } };
+    cell.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
     cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     cell.border = {
-      top: { style: "thin", color: { argb: "FF000000" } },
-      bottom: { style: "thin", color: { argb: "FF000000" } },
-      left: { style: "thin", color: { argb: "FF000000" } },
-      right: { style: "thin", color: { argb: "FF000000" } },
+      top:    { style: "thin",  color: { argb: "FF000000" } },
+      bottom: { style: "thin",  color: { argb: "FF000000" } },
+      left:   { style: "thin",  color: { argb: "FF000000" } },
+      right:  { style: "thin",  color: { argb: "FF000000" } },
     };
   });
   row.height = 28;
 }
 
-function styleDataRow(row: ExcelJS.Row, bgColor: string) {
+function applyDataRowStyle(row: ExcelJS.Row, argb: string) {
   row.eachCell({ includeEmpty: true }, (cell) => {
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-    cell.alignment = { vertical: "middle", wrapText: true };
-    cell.border = {
-      top: { style: "hair", color: { argb: "FFCCCCCC" } },
+    cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb } };
+    cell.alignment = { vertical: "middle", wrapText: false };
+    cell.border    = {
+      top:    { style: "hair", color: { argb: "FFCCCCCC" } },
       bottom: { style: "hair", color: { argb: "FFCCCCCC" } },
-      left: { style: "thin", color: { argb: "FFCCCCCC" } },
-      right: { style: "thin", color: { argb: "FFCCCCCC" } },
+      left:   { style: "thin", color: { argb: "FFCCCCCC" } },
+      right:  { style: "thin", color: { argb: "FFCCCCCC" } },
     };
   });
   row.height = 20;
 }
 
+const COLUMNS = [
+  { key: "num",       header: "#",                    width: 5  },
+  { key: "plate",     header: "Placa",                width: 13 },
+  { key: "name",      header: "Vehículo / Dispositivo", width: 32 },
+  { key: "client",    header: "Cliente",              width: 22 },
+  { key: "phone",     header: "Teléfono",             width: 14 },
+  { key: "imei",      header: "IMEI",                 width: 16 },
+  { key: "lastConn",  header: "Último Contacto",      width: 22 },
+  { key: "days",      header: "Días Sin Señal",       width: 14 },
+  { key: "gpsStatus", header: "Estado GPS",           width: 18 },
+  { key: "opStatus",  header: "Estado Operacional",   width: 20 },
+  { key: "notes",     header: "Observaciones",        width: 30 },
+];
+
 function addDetailSheet(
-  workbook: ExcelJS.Workbook,
-  sheetName: string,
-  devices: ReturnType<typeof buildReportData> extends Promise<infer T> ? T : never,
-  category: Category,
-  statusData: StatusData
+  wb: ExcelJS.Workbook,
+  name: string,
+  rows: ReportRow[],
+  cat: Category,
+  statusData: StatusData,
 ) {
-  const ws = workbook.addWorksheet(sheetName, {
+  const ws = wb.addWorksheet(name, {
     views: [{ state: "frozen", ySplit: 3 }],
-    properties: { tabColor: { argb: CATEGORY_COLORS[category] } },
+    properties: { tabColor: { argb: CAT_FG[cat] } },
   });
 
-  ws.columns = [
-    { key: "num",       width: 5  },
-    { key: "plate",     width: 14 },
-    { key: "name",      width: 30 },
-    { key: "client",    width: 22 },
-    { key: "phone",     width: 16 },
-    { key: "imei",      width: 16 },
-    { key: "lastConn",  width: 22 },
-    { key: "days",      width: 14 },
-    { key: "gpsStatus", width: 18 },
-    { key: "opStatus",  width: 20 },
-    { key: "notes",     width: 30 },
-  ];
+  ws.columns = COLUMNS.map((c) => ({ key: c.key, width: c.width }));
 
-  // Title row
-  ws.mergeCells("A1:K1");
-  const titleCell = ws.getCell("A1");
-  titleCell.value = `GPS SISTEMA C.A. — ${CATEGORY_LABELS[category]}`;
-  titleCell.font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
-  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CATEGORY_COLORS[category] } };
-  titleCell.alignment = { vertical: "middle", horizontal: "center" };
+  // Title
+  ws.mergeCells(`A1:K1`);
+  const t = ws.getCell("A1");
+  t.value     = `GPS SISTEMA C.A. — ${CATEGORY_LABELS[cat]}`;
+  t.font      = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+  t.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: CAT_FG[cat] } };
+  t.alignment = { vertical: "middle", horizontal: "center" };
   ws.getRow(1).height = 35;
 
-  // Date row
+  // Sub-title
   ws.mergeCells("A2:K2");
-  const dateCell = ws.getCell("A2");
-  dateCell.value = `Generado: ${new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" })} | Total: ${devices.length} unidad(es)`;
-  dateCell.font = { italic: true, size: 10, color: { argb: "FF666666" } };
-  dateCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F9FA" } };
-  dateCell.alignment = { vertical: "middle", horizontal: "center" };
+  const sub = ws.getCell("A2");
+  sub.value     = `Generado: ${new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" })}   |   Total: ${rows.length} unidad(es)`;
+  sub.font      = { italic: true, size: 10, color: { argb: "FF555555" } };
+  sub.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F9FA" } };
+  sub.alignment = { vertical: "middle", horizontal: "center" };
   ws.getRow(2).height = 18;
 
   // Header row
-  const headerRow = ws.addRow(["#", "Placa", "Vehículo / Dispositivo", "Cliente", "Teléfono", "IMEI", "Último Contacto", "Días Sin Señal", "Estado GPS", "Estado Operacional", "Observaciones"]);
-  styleHeader(ws, headerRow, CATEGORY_COLORS[category]);
+  const hRow = ws.addRow(COLUMNS.map((c) => c.header));
+  applyHeaderStyle(hRow, CAT_FG[cat]);
 
   // Data rows
-  devices.forEach((d, i) => {
-    const st = statusData[d.deviceId];
+  rows.forEach((d, i) => {
+    const st  = statusData[d.deviceId];
     const row = ws.addRow([
       i + 1,
-      d.plate || "—",
+      d.plate           || "—",
       d.name,
-      d.clientName ?? "Sin asignar",
-      d.clientPhone ?? "—",
-      d.imei || "—",
-      d.lastConnection || "—",
+      d.clientName      ?? "Sin asignar",
+      d.clientPhone     ?? "—",
+      d.imei            || "—",
+      d.lastConnection  || "—",
       d.daysSinceContact !== null ? d.daysSinceContact : "—",
-      GPS_STATUS_LABELS[d.gpsStatus] ?? d.gpsStatus,
-      st ? OP_STATUS_LABELS[st.status] ?? "❓ Desconocido" : "❓ Desconocido",
+      GPS_LABELS[d.gpsStatus] ?? d.gpsStatus,
+      st ? (OP_LABELS[st.status] ?? "Desconocido") : "Desconocido",
       st?.notes ?? "",
     ]);
 
-    const rowBg = CATEGORY_ROW_COLORS[d.category] ?? "FFFFFFFF";
-    styleDataRow(row, i % 2 === 0 ? rowBg : "FFFFFFFF");
+    const bg = i % 2 === 0 ? CAT_ROW[d.category] : "FFFFFFFF";
+    applyDataRowStyle(row, bg);
 
-    // Highlight days cell
+    // Highlight days count
     const daysCell = row.getCell(8);
     if (typeof daysCell.value === "number") {
-      daysCell.font = { bold: true, color: { argb: CATEGORY_COLORS[d.category] } };
+      daysCell.font = { bold: true, color: { argb: CAT_FG[d.category] } };
     }
   });
 
   ws.autoFilter = { from: "A3", to: "K3" };
 }
 
+// ─── POST /api/reports/excel ──────────────────────────────────────────────────
+
 router.post("/excel", async (req, res): Promise<void> => {
   try {
     const statusData: StatusData = (req.body as { statusData?: StatusData }).statusData ?? {};
-    const allData = await buildReportData();
+    const all = await buildReportData();
 
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "GPS SISTEMA C.A.";
-    workbook.created = new Date();
-    workbook.modified = new Date();
+    const wb = new ExcelJS.Workbook();
+    wb.creator  = "GPS SISTEMA C.A.";
+    wb.created  = new Date();
+    wb.modified = new Date();
 
-    // ── Logo ──────────────────────────────────────────────────────────────────
+    // Logo
     const logoPaths = [
       join(process.cwd(), "artifacts/gps-admin/dist/public/logo-gps.png"),
       join(process.cwd(), "artifacts/gps-admin/public/logo-gps.png"),
     ];
     const logoPath = logoPaths.find(existsSync) ?? null;
-    let logoImageId: number | null = null;
+    let logoId: number | null = null;
     if (logoPath) {
-      logoImageId = workbook.addImage({ filename: logoPath, extension: "png" });
+      logoId = wb.addImage({ filename: logoPath, extension: "png" });
     }
 
-    // ── Summary Sheet ─────────────────────────────────────────────────────────
-    const ws0 = workbook.addWorksheet("Resumen Ejecutivo", {
+    // ── Sheet 1: Resumen Ejecutivo ────────────────────────────────────────────
+    const ws0 = wb.addWorksheet("📊 Resumen Ejecutivo", {
       properties: { tabColor: { argb: "FF1A252F" } },
     });
 
     ws0.columns = [
-      { width: 5 }, { width: 28 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 },
+      { width: 5 }, { width: 30 }, { width: 15 }, { width: 12 }, { width: 40 },
     ];
 
-    // Logo area (rows 1-5)
-    ws0.mergeCells("B1:F5");
-    const logoTitleCell = ws0.getCell("B1");
-    logoTitleCell.value = "GPS SISTEMA C.A.";
-    logoTitleCell.font = { bold: true, size: 28, color: { argb: "FF1A252F" } };
-    logoTitleCell.alignment = { vertical: "middle", horizontal: "right" };
-
-    if (logoImageId !== null) {
-      ws0.addImage(logoImageId, { tl: { col: 0, row: 0 }, ext: { width: 110, height: 110 } });
-    }
-
-    for (let r = 1; r <= 5; r++) {
-      ws0.getRow(r).height = 22;
+    // Logo area
+    for (let r = 1; r <= 6; r++) {
+      ws0.getRow(r).height = 20;
+      ws0.mergeCells(`A${r}:E${r}`);
       ws0.getRow(r).getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
     }
+    if (logoId !== null) {
+      ws0.addImage(logoId, { tl: { col: 0, row: 0 }, ext: { width: 120, height: 120 } });
+    }
 
-    // Report title
-    ws0.mergeCells("A6:F6");
-    const mainTitle = ws0.getCell("A6");
-    mainTitle.value = "REPORTE DE FALLAS Y ESTADO DE FLOTA";
-    mainTitle.font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
-    mainTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A252F" } };
-    mainTitle.alignment = { vertical: "middle", horizontal: "center" };
-    ws0.getRow(6).height = 38;
+    // Company name (offset from logo)
+    ws0.getCell("C2").value = "GPS SISTEMA C.A.";
+    ws0.getCell("C2").font  = { bold: true, size: 22, color: { argb: "FF1A252F" } };
 
-    ws0.mergeCells("A7:F7");
-    const dateTitle = ws0.getCell("A7");
-    dateTitle.value = `Fecha de generación: ${new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" })}`;
-    dateTitle.font = { italic: true, size: 11, color: { argb: "FF555555" } };
-    dateTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F3F4" } };
-    dateTitle.alignment = { vertical: "middle", horizontal: "center" };
-    ws0.getRow(7).height = 22;
+    ws0.getCell("C3").value = "Sistema de Monitoreo Vehicular";
+    ws0.getCell("C3").font  = { italic: true, size: 12, color: { argb: "FF555555" } };
+
+    // Title bar
+    ws0.mergeCells("A7:E7");
+    const titleCell = ws0.getCell("A7");
+    titleCell.value     = "REPORTE DE FALLAS Y ESTADO DE FLOTA";
+    titleCell.font      = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
+    titleCell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A252F" } };
+    titleCell.alignment = { vertical: "middle", horizontal: "center" };
+    ws0.getRow(7).height = 38;
+
+    ws0.mergeCells("A8:E8");
+    const dateCell = ws0.getCell("A8");
+    dateCell.value     = `Fecha de generación: ${new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" })}`;
+    dateCell.font      = { italic: true, size: 11, color: { argb: "FF444444" } };
+    dateCell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F3F4" } };
+    dateCell.alignment = { vertical: "middle", horizontal: "center" };
+    ws0.getRow(8).height = 22;
 
     ws0.addRow([]);
 
-    // Summary table header
-    const categories: Category[] = ["critico", "grave", "atencion", "leve", "activo", "sin_datos"];
-    const summaryHeader = ws0.addRow(["", "CATEGORÍA", "CANTIDAD", "% DEL TOTAL", "ESTADO", "ACCIÓN RECOMENDADA"]);
-    styleHeader(ws0, summaryHeader, "FF2C3E50");
+    // Summary table
+    const summaryHeader = ws0.addRow(["", "CATEGORÍA", "UNIDADES", "% TOTAL", "ACCIÓN RECOMENDADA"]);
+    applyHeaderStyle(summaryHeader, "FF2C3E50");
 
-    const totalDevices = allData.length;
-    const actions: Record<Category, string> = {
-      critico: "Inspección inmediata — posible equipo perdido",
-      grave: "Revisión urgente esta semana",
-      atencion: "Programar revisión próxima semana",
-      leve: "Monitorear — puede ser falla temporal",
-      activo: "Operativo — sin acción requerida",
-      sin_datos: "Verificar instalación del dispositivo",
+    const ACTIONS: Record<Category, string> = {
+      critico:   "Inspección inmediata — posible equipo perdido o averiado",
+      grave:     "Revisión urgente esta semana",
+      atencion:  "Programar revisión la próxima semana",
+      leve:      "Monitorear — puede ser falla temporal de señal",
+      activo:    "Operativo — sin acción requerida",
+      sin_datos: "Verificar instalación del dispositivo GPS",
     };
 
-    categories.forEach((cat) => {
-      const count = allData.filter((d) => d.category === cat).length;
-      const pct = totalDevices > 0 ? ((count / totalDevices) * 100).toFixed(1) : "0.0";
-      const row = ws0.addRow(["", CATEGORY_LABELS[cat], count, `${pct}%`, "", actions[cat]]);
-      row.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: CATEGORY_ROW_COLORS[cat] } };
-      row.getCell(3).fill = { type: "pattern", pattern: "solid", fgColor: { argb: CATEGORY_ROW_COLORS[cat] } };
-      row.getCell(3).font = { bold: true, color: { argb: CATEGORY_COLORS[cat] }, size: 12 };
-      row.getCell(4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: CATEGORY_ROW_COLORS[cat] } };
-      row.getCell(6).fill = { type: "pattern", pattern: "solid", fgColor: { argb: CATEGORY_ROW_COLORS[cat] } };
+    const total = all.length;
+    for (const cat of ["critico", "grave", "atencion", "leve", "sin_datos", "activo"] as Category[]) {
+      const count = all.filter((d) => d.category === cat).length;
+      const pct   = total > 0 ? `${((count / total) * 100).toFixed(1)}%` : "0.0%";
+      const row   = ws0.addRow(["", CATEGORY_LABELS[cat], count, pct, ACTIONS[cat]]);
+
+      const bg = CAT_ROW[cat];
       row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
         cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-        cell.border = {
-          top: { style: "thin", color: { argb: "FFCCCCCC" } },
-          bottom: { style: "thin", color: { argb: "FFCCCCCC" } },
-          left: { style: "thin", color: { argb: "FFCCCCCC" } },
-          right: { style: "thin", color: { argb: "FFCCCCCC" } },
+        cell.border    = {
+          top: { style: "thin", color: { argb: "FFCCCCCC" } }, bottom: { style: "thin", color: { argb: "FFCCCCCC" } },
+          left: { style: "thin", color: { argb: "FFCCCCCC" } }, right: { style: "thin", color: { argb: "FFCCCCCC" } },
         };
       });
+      row.getCell(3).font = { bold: true, color: { argb: CAT_FG[cat] }, size: 12 };
       row.height = 22;
-    });
+    }
 
     // Total row
     ws0.addRow([]);
-    const totalRow = ws0.addRow(["", "TOTAL DE DISPOSITIVOS", totalDevices, "100%", "", ""]);
-    totalRow.eachCell({ includeEmpty: true }, (cell) => {
-      cell.font = { bold: true, size: 11 };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2C3E50" } };
-      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-      cell.alignment = { vertical: "middle", horizontal: "center" };
-      cell.border = {
-        top: { style: "medium", color: { argb: "FF000000" } },
-        bottom: { style: "medium", color: { argb: "FF000000" } },
-        left: { style: "thin", color: { argb: "FF000000" } },
-        right: { style: "thin", color: { argb: "FF000000" } },
-      };
-    });
-    totalRow.height = 24;
+    const totalRow = ws0.addRow(["", "TOTAL DE DISPOSITIVOS", total, "100%", ""]);
+    applyHeaderStyle(totalRow, "FF2C3E50");
 
-    // ── Detail Sheets ─────────────────────────────────────────────────────────
-    const sheetDefs: Array<{ name: string; cat: Category; filter: (d: typeof allData[0]) => boolean }> = [
-      { name: "🔴 Críticos",  cat: "critico",  filter: (d) => d.category === "critico"  },
-      { name: "🟠 Graves",    cat: "grave",    filter: (d) => d.category === "grave"    },
-      { name: "🟡 Atención",  cat: "atencion", filter: (d) => d.category === "atencion" },
-      { name: "🔵 Leve",      cat: "leve",     filter: (d) => d.category === "leve"     },
-      { name: "⚪ Sin Datos",  cat: "sin_datos",filter: (d) => d.category === "sin_datos"},
-      { name: "✅ Activos",   cat: "activo",   filter: (d) => d.category === "activo"   },
+    // ── Detail sheets ─────────────────────────────────────────────────────────
+    const sheets: Array<{ name: string; cat: Category }> = [
+      { name: "🔴 Críticos",   cat: "critico"  },
+      { name: "🟠 Graves",     cat: "grave"    },
+      { name: "🟡 Atención",   cat: "atencion" },
+      { name: "🔵 Leve",       cat: "leve"     },
+      { name: "⚪ Sin Datos",  cat: "sin_datos" },
+      { name: "✅ Activos",    cat: "activo"   },
     ];
 
-    for (const { name, cat, filter } of sheetDefs) {
-      const subset = allData.filter(filter).sort((a, b) => (b.daysSinceContact ?? 0) - (a.daysSinceContact ?? 0));
-      addDetailSheet(workbook, name, subset, cat, statusData);
+    for (const { name, cat } of sheets) {
+      const subset = all
+        .filter((d) => d.category === cat)
+        .sort((a, b) => (b.daysSinceContact ?? 0) - (a.daysSinceContact ?? 0));
+      addDetailSheet(wb, name, subset, cat, statusData);
     }
 
-    // All disconnected sheet
-    const allDisc = allData
+    // All disconnected
+    const allDisc = all
       .filter((d) => d.category !== "activo")
       .sort((a, b) => (b.daysSinceContact ?? 0) - (a.daysSinceContact ?? 0));
-    addDetailSheet(workbook, "📋 Todos Desconectados", allDisc, "sin_datos", statusData);
+    addDetailSheet(wb, "📋 Todos Desconectados", allDisc, "critico", statusData);
 
-    // ── Stream response ───────────────────────────────────────────────────────
+    // Stream
     const date = new Date().toISOString().split("T")[0];
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="Reporte_Fallas_GPS_${date}.xlsx"`);
-    await workbook.xlsx.write(res);
+    await wb.xlsx.write(res);
     res.end();
   } catch (err) {
-    req.log.error({ err }, "Failed to generate Excel report");
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Failed to generate Excel" });
-    }
+    logger.error({ err }, "Excel generation failed");
+    if (!res.headersSent) res.status(500).json({ error: "Failed to generate Excel" });
   }
 });
 
