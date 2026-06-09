@@ -8,6 +8,7 @@ import { Dashboard } from "@/pages/Dashboard";
 import { Soporte } from "@/pages/Soporte";
 import { Mapa } from "@/pages/Mapa";
 import { Clientes } from "@/pages/Clientes";
+import { Reportes } from "@/pages/Reportes";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,9 @@ function Router() {
       </Route>
       <Route path="/clientes">
         <AppLayout><Clientes /></AppLayout>
+      </Route>
+      <Route path="/reportes">
+        <AppLayout><Reportes /></AppLayout>
       </Route>
       <Route>
         <AppLayout><NotFound /></AppLayout>
