@@ -4,7 +4,6 @@ import { useGetConnectionStatus, getGetConnectionStatusQueryKey } from "@workspa
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Dashboard",
-  "/reportes": "Reportes de Fallas",
   "/soporte": "Soporte Técnico",
   "/clientes": "Clientes",
   "/mapa": "Mapa en Vivo",
