@@ -5,10 +5,16 @@ generated = []
 id = "UqepKePrHrm7ps60OSOMO"
 uri = "file://clientes_backup.csv"
 type = "table"
-title = "Backup Completo — 37 Clientes + 145 Vehículos (CSV)"
+title = "Clientes GPS — 50 registros"
 
 [[outputs]]
 id = "mRZ6smcTHqoHo9hLNQLu6"
 uri = "file://clientes_backup.json"
 type = "unspecified"
 title = "Backup Completo — 37 Clientes + 145 Vehículos (JSON)"
+
+[[outputs]]
+id = "RRNvlJ5nwbPfvajHfHymA"
+uri = "file://vehiculos_backup.csv"
+type = "table"
+title = "Vehículos asignados — 200 registros"
