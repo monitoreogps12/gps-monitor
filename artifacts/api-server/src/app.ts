@@ -40,7 +40,8 @@ const adminDist = join(process.cwd(), "artifacts/gps-admin/dist/public");
 if (existsSync(adminDist)) {
   app.use(express.static(adminDist));
   // SPA fallback — let React Router handle all non-API paths
-  app.get("*", (_req, res) => {
+  // Express 5 requires named wildcards; "/*splat" replaces the old bare "*"
+  app.get("/*splat", (_req, res) => {
     res.sendFile(join(adminDist, "index.html"));
   });
 }
