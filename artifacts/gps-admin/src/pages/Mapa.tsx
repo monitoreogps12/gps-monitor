@@ -279,49 +279,89 @@ export function Mapa() {
     <div className="relative w-full h-screen overflow-hidden">
       <div id="live-map" className="w-full h-full z-0" />
 
-      {/* ── Header overlay ── */}
-      <div className="absolute top-3 left-3 right-3 z-10 flex items-start gap-3 pointer-events-none">
+      {/* ── Centro de Control — barra completa ── */}
+      <div className="absolute top-3 left-3 right-3 z-10 pointer-events-none">
+        <div
+          className="pointer-events-auto rounded-2xl overflow-hidden shadow-2xl"
+          style={{
+            background: 'linear-gradient(135deg, rgba(5,10,28,0.96) 0%, rgba(8,18,48,0.96) 50%, rgba(5,10,28,0.96) 100%)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(16px)',
+          }}
+        >
+          {/* Gradient top accent line */}
+          <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #E8720C 0%, #1E6FBF 50%, #5B9B2A 100%)' }} />
 
-        {/* Brand card */}
-        <div className="bg-[#05111f]/90 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl px-4 py-3 pointer-events-auto flex items-center gap-3 shrink-0">
-          <img src={logoUrl} alt="GPS Sistema C.A." className="h-14 w-14 object-contain drop-shadow-lg" />
-          <div>
-            <div className="text-[15px] font-extrabold text-white tracking-tight leading-tight">GPS SISTEMA C.A.</div>
-            <div className="text-[9px] font-bold text-orange-400/80 tracking-[0.25em] uppercase mt-0.5">Centro de Monitoreo</div>
-            <div className="text-[9px] text-white/40 tracking-[0.15em] uppercase mt-0.5">rastreoplus247.com</div>
-          </div>
-          <div className="w-px h-12 bg-white/10 mx-1" />
-          <div className="text-center">
-            <div className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Hora Local</div>
-            <div className="text-2xl font-mono font-semibold text-sky-300 tabular-nums leading-none">
-              {time.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </div>
-            <div className="text-[9px] text-white/30 mt-1">
-              {time.toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </div>
-          </div>
-        </div>
+          <div className="flex items-stretch">
 
-        {/* Stats chips */}
-        <div className="flex gap-2 pointer-events-auto flex-wrap">
-          {[
-            { label: 'En Mapa',        value: counts.total,  color: 'text-white',      bg: 'bg-[#05111f]/90', dot: null       },
-            { label: 'En Movimiento',  value: counts.moving, color: 'text-green-400',  bg: 'bg-[#052b1a]/90', dot: '#22c55e'  },
-            { label: 'ACK / Encendido',value: counts.ack,    color: 'text-yellow-400', bg: 'bg-[#1a1500]/90', dot: '#eab308'  },
-            { label: 'Motor Ralentí',  value: counts.idle,   color: 'text-orange-400', bg: 'bg-[#1a0800]/90', dot: '#f97316'  },
-            { label: 'Desconectados',  value: counts.off,    color: 'text-blue-400',   bg: 'bg-[#05112b]/90', dot: '#3b82f6'  },
-            { label: 'Ocultos >7d',    value: counts.hidden, color: 'text-white/30',   bg: 'bg-[#05111f]/80', dot: null       },
-          ].map(s => (
-            <div key={s.label} className={`${s.bg} backdrop-blur-md border border-white/10 rounded-xl shadow-xl px-4 py-2.5 text-center min-w-[90px]`}>
-              {s.dot && (
-                <div className="flex items-center justify-center mb-1">
-                  <span className="w-2 h-2 rounded-full" style={{ background: s.dot, boxShadow: `0 0 8px ${s.dot}88` }} />
+            {/* ── Brand section ── */}
+            <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+              <img src={logoUrl} alt="GPS Sistema C.A." className="h-12 w-12 object-contain drop-shadow-lg" />
+              <div>
+                <div className="text-[13px] font-black text-white tracking-tight leading-tight">GPS SISTEMA C.A.</div>
+                <div className="text-[8px] font-bold tracking-[0.25em] uppercase mt-0.5" style={{ color: '#E8720C' }}>Centro de Monitoreo</div>
+                <div className="text-[8px] text-white/35 tracking-[0.15em] uppercase mt-0.5">rastreoplus247.com</div>
+              </div>
+            </div>
+
+            {/* ── Clock ── */}
+            <div className="flex flex-col items-center justify-center px-5 shrink-0" style={{ borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="text-[8px] font-bold text-white/35 uppercase tracking-widest mb-0.5">Hora Local</div>
+              <div className="text-xl font-mono font-black tabular-nums" style={{ color: '#38bdf8', textShadow: '0 0 16px rgba(56,189,248,0.5)' }}>
+                {time.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </div>
+              <div className="text-[8px] text-white/25 mt-0.5">
+                {time.toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
+            </div>
+
+            {/* ── Stats ── */}
+            <div className="flex flex-1 divide-x" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+              {([
+                { label: 'En Mapa',         value: counts.total,  color: '#e2e8f0', glow: 'rgba(226,232,240,0.3)', pulse: false },
+                { label: 'En Movimiento',   value: counts.moving, color: '#22c55e', glow: 'rgba(34,197,94,0.5)',   pulse: true  },
+                { label: 'ACK / Encendido', value: counts.ack,    color: '#eab308', glow: 'rgba(234,179,8,0.5)',   pulse: false },
+                { label: 'Motor Ralentí',   value: counts.idle,   color: '#f97316', glow: 'rgba(249,115,22,0.5)',  pulse: false },
+                { label: 'Desconectados',   value: counts.off,    color: '#3b82f6', glow: 'rgba(59,130,246,0.5)',  pulse: false },
+                { label: 'Ocultos >7d',     value: counts.hidden, color: '#475569', glow: 'rgba(71,85,105,0.3)',   pulse: false },
+              ] as const).map((s) => (
+                <div
+                  key={s.label}
+                  className="flex-1 flex flex-col items-center justify-center py-3 px-2 relative"
+                  style={{ borderColor: 'rgba(255,255,255,0.06)', minWidth: 0 }}
+                >
+                  {/* Subtle glow bg */}
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: `radial-gradient(ellipse at 50% 100%, ${s.glow.replace('0.5','0.06')} 0%, transparent 70%)` }}
+                  />
+                  {/* Pulse dot */}
+                  {s.pulse && (
+                    <span
+                      className="absolute top-2 right-2 w-2 h-2 rounded-full"
+                      style={{ background: s.color, boxShadow: `0 0 8px ${s.color}`, animation: 'pulse 1.4s infinite' }}
+                    />
+                  )}
+                  {/* Number */}
+                  <div
+                    className="text-3xl font-black tabular-nums leading-none relative z-10"
+                    style={{ color: s.color, textShadow: `0 0 20px ${s.glow}, 0 0 40px ${s.glow.replace('0.5','0.25')}` }}
+                  >
+                    {s.value}
+                  </div>
+                  {/* Label */}
+                  <div className="text-[8px] font-bold uppercase tracking-[0.15em] mt-1 text-center leading-tight relative z-10" style={{ color: `${s.color}88` }}>
+                    {s.label}
+                  </div>
+                  {/* Bottom color line */}
+                  <div
+                    className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all"
+                    style={{ width: '60%', background: s.color, opacity: 0.5, boxShadow: `0 0 8px ${s.color}` }}
+                  />
                 </div>
-              )}
-              <div className={`text-2xl font-bold tabular-nums ${s.color}`}>{s.value}</div>
-              <div className="text-[9px] font-bold text-white/40 uppercase tracking-wider mt-0.5 leading-tight">{s.label}</div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
 
