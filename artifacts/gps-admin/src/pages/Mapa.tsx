@@ -36,15 +36,15 @@ function buildStreetLayers(): L.TileLayer[] {
 
 function buildSatelliteLayers(): L.TileLayer[] {
   return [
-    // Esri satellite base
+    // Google hybrid — satélite + nombres de calles, negocios e íconos
     L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 21, maxNativeZoom: 18 }
-    ),
-    // Street / place name labels on top
-    L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 21, maxNativeZoom: 18, opacity: 0.9 }
+      'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+      {
+        maxZoom: 21,
+        maxNativeZoom: 20,
+        subdomains: '0123',
+        attribution: '© Google',
+      }
     ),
   ];
 }
