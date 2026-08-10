@@ -294,6 +294,9 @@ const LIVE_CACHE_TTL = 3 * 1000; // 3 seconds
 // Shared last-seen times populated by fetchLivePositions from items_json for ALL devices
 // (including offline ones that have no coordinates). Used by fetchOfflineReport.
 const lastSeenTimesCache = new Map<string, string>();
+// True once the 7-day lookback has been completed; prevents rerunning on every call
+// but also prevents the livePositions cache (only ~27 devices) from bypassing the lookback.
+let fullLastSeenLookupDone = false;
 
 // Cache for device sensors (refreshed every 5 minutes via /objects/items?full=true)
 const sensorCache = new Map<string, DeviceSensor[]>();
@@ -761,13 +764,16 @@ function parseGpsTime(timeStr: string): number | null {
  * (e.g. fetchLivePositions hasn't run yet).
  */
 async function fetchAllDeviceLastSeenTimes(): Promise<Map<string, string>> {
-  // ── Primary: shared cache from fetchLivePositions ─────────────────────────
-  if (lastSeenTimesCache.size > 0) {
-    logger.info({ count: lastSeenTimesCache.size }, "Using shared last-seen cache from live positions");
+  // ── Primary: reuse cache once the full 7-day lookback has been done ──────
+  // NOTE: we do NOT gate on lastSeenTimesCache.size > 0, because fetchLivePositions
+  // can populate the cache with only ~27 very-recent devices before this function runs,
+  // which would cause us to skip the lookback and miss all recently-offline devices.
+  if (fullLastSeenLookupDone) {
+    logger.info({ count: lastSeenTimesCache.size }, "Using shared last-seen cache (lookback already done)");
     return new Map(lastSeenTimesCache);
   }
 
-  // ── Fallback: items_json with 7-day lookback to capture recently offline devices ──
+  // ── First call: items_json with 7-day lookback to capture recently offline devices ──
   const ok = await ensureSession();
   if (!ok) return new Map();
   const client = createClient();
@@ -810,6 +816,7 @@ async function fetchAllDeviceLastSeenTimes(): Promise<Map<string, string>> {
         }
       }
     }
+    fullLastSeenLookupDone = true;
     logger.info({ count: result.size }, "Fetched device last-seen times (7-day lookback)");
     return result;
   } catch (err) {
@@ -836,9 +843,13 @@ export async function fetchOfflineReport(): Promise<OfflineReportItem[]> {
   const result: OfflineReportItem[] = [];
 
   for (const device of disconnected) {
-    // Prefer real last-seen time from live endpoint; fall back to installation_date
-    const lastSeenStr = lastSeenTimes.get(device.id) || device.lastConnection;
-    const lastSeenMs = parseGpsTime(lastSeenStr);
+    // Real GPS last-seen time from the 7-day lookback (may be undefined for >7d offline devices)
+    const realGpsTime = lastSeenTimes.get(device.id) ?? "";
+
+    // For daysOffline/category: use GPS time if available, else fall back to installationDate
+    // (gives a reasonable estimate even when GPS time is unknown)
+    const timeForCalc = realGpsTime || device.lastConnection;
+    const lastSeenMs = parseGpsTime(timeForCalc);
     const daysOffline =
       lastSeenMs != null ? Math.floor((now - lastSeenMs) / 86_400_000) : -1;
 
@@ -854,7 +865,8 @@ export async function fetchOfflineReport(): Promise<OfflineReportItem[]> {
       plate: device.plate,
       simNumber: device.simNumber,
       model: device.model,
-      lastConnection: lastSeenStr,
+      // Empty string when no real GPS time → frontend will show "Sin datos"
+      lastConnection: realGpsTime,
       daysOffline,
       category,
       installationDate: device.lastConnection || null,
