@@ -16,6 +16,23 @@ import {
   WifiOff,
 } from "lucide-react";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+/**
+ * Formats the GPS platform time string for display.
+ * Handles: "DD-MM-YYYY HH:MM:SS AM/PM", "YYYY-MM-DD", "0000-00-00"
+ */
+function formatLastSeen(raw: string | null | undefined): string {
+  if (!raw || raw === "0000-00-00" || raw === "0000-00-00 00:00:00") return "Sin datos";
+  // DD-MM-YYYY HH:MM:SS AM → keep as-is (platform format, already readable)
+  if (/^\d{2}-\d{2}-\d{4}/.test(raw)) return raw;
+  // YYYY-MM-DD → localise
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, m, d] = raw.split("-");
+    return `${d}-${m}-${y}`;
+  }
+  return raw;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Category = "urgente" | "contacto" | "descanso";
 
@@ -225,8 +242,8 @@ async function exportToExcel(items: OfflineItem[], base: string) {
         item.plate || "—",
         item.simNumber || "—",
         item.model || "—",
-        item.installationDate || "—",
-        item.lastConnection || "—",
+        formatLastSeen(item.installationDate) !== "Sin datos" ? formatLastSeen(item.installationDate) : "—",
+        formatLastSeen(item.lastConnection),
         item.daysOffline >= 0 ? `${item.daysOffline} día(s)` : "Desconocido",
         cat === "urgente" ? "Revisión Urgente" : cat === "contacto" ? "Contacto Cliente" : "Descanso",
       ]);
@@ -490,10 +507,12 @@ export function Reportes() {
                             {item.model || "—"}
                           </td>
                           <td className="px-3 py-2.5 text-gray-500 text-xs">
-                            {item.installationDate || "—"}
+                            {formatLastSeen(item.installationDate) !== "Sin datos"
+                              ? formatLastSeen(item.installationDate)
+                              : "—"}
                           </td>
                           <td className="px-3 py-2.5 text-gray-500 text-xs">
-                            {item.lastConnection || "—"}
+                            {formatLastSeen(item.lastConnection)}
                           </td>
                           <td className="px-3 py-2.5 text-center">
                             <span

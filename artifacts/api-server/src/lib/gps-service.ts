@@ -226,6 +226,10 @@ export async function fetchDevices(): Promise<GpsDevice[]> {
         "columns[5][name]": "plate_number",
         "columns[6][data]": "registration_number",
         "columns[6][name]": "registration_number",
+        "columns[7][data]": "time",
+        "columns[7][name]": "time",
+        "columns[8][data]": "installation_date",
+        "columns[8][name]": "installation_date",
       },
       headers: {
         "Cookie": cookieHeader(),
@@ -254,7 +258,8 @@ export async function fetchDevices(): Promise<GpsDevice[]> {
         model: row.device_model || null,
         status: parseStatus(row.status || ""),
         speed: null,
-        lastConnection: row.installation_date || "",
+        // Prefer the GPS platform's actual last-seen time; fall back to installation_date
+        lastConnection: row.time || row.installation_date || "",
         lat: null,
         lng: null,
         address: null,
@@ -287,6 +292,10 @@ let cachedLivePositions: LivePosition[] = [];
 let lastLiveFetch = 0;
 let liveCheckTimestamp = 0;
 const LIVE_CACHE_TTL = 3 * 1000; // 3 seconds
+
+// Shared last-seen times populated by fetchLivePositions from items_json for ALL devices
+// (including offline ones that have no coordinates). Used by fetchOfflineReport.
+const lastSeenTimesCache = new Map<string, string>();
 
 // Cache for device sensors (refreshed every 5 minutes via /objects/items?full=true)
 const sensorCache = new Map<string, DeviceSensor[]>();
@@ -324,6 +333,11 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
       // Build a map from the new items
       const updatesById = new Map<string, LivePosition>();
       for (const d of items) {
+        // Capture last-seen time for ALL devices (including offline ones without coordinates)
+        const itemId = String(d.id || "");
+        const itemTime = String(d.time || "");
+        if (itemId && itemTime) lastSeenTimesCache.set(itemId, itemTime);
+
         const lat = parseFloat(String(d.lat || "0"));
         const lng = parseFloat(String(d.lng || "0"));
         if (!lat || !lng) continue;
@@ -738,10 +752,23 @@ function parseGpsTime(timeStr: string): number | null {
 }
 
 /**
- * Fetches the last-seen timestamp for ALL devices (including offline ones with no coordinates).
- * Returns a map of device id → last seen time string.
+ * Returns the last-seen timestamp map for all devices.
+ *
+ * Primary: reuses the shared lastSeenTimesCache populated by fetchLivePositions
+ * from items_json (which already runs on every connection poll). This covers
+ * all devices that have ever had GPS data.
+ *
+ * Fallback: makes a fresh items_json request if the cache is still empty
+ * (e.g. fetchLivePositions hasn't run yet).
  */
 async function fetchAllDeviceLastSeenTimes(): Promise<Map<string, string>> {
+  // ── Primary: shared cache from fetchLivePositions ─────────────────────────
+  if (lastSeenTimesCache.size > 0) {
+    logger.info({ count: lastSeenTimesCache.size }, "Using shared last-seen cache from live positions");
+    return new Map(lastSeenTimesCache);
+  }
+
+  // ── Fallback: direct items_json request ───────────────────────────────────
   const ok = await ensureSession();
   if (!ok) return new Map();
   const client = createClient();
@@ -760,12 +787,16 @@ async function fetchAllDeviceLastSeenTimes(): Promise<Map<string, string>> {
       for (const item of resp.data.items as Record<string, unknown>[]) {
         const id = String(item.id ?? "");
         const time = String(item.time ?? "");
-        if (id && time) result.set(id, time);
+        if (id && time) {
+          result.set(id, time);
+          lastSeenTimesCache.set(id, time); // populate shared cache too
+        }
       }
     }
+    logger.info({ count: result.size }, "Fetched device last-seen times from items_json (fallback)");
     return result;
   } catch (err) {
-    logger.error({ err }, "Failed to fetch all device last-seen times");
+    logger.error({ err }, "Failed to fetch device last-seen times");
     return new Map();
   }
 }
