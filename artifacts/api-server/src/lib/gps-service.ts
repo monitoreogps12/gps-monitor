@@ -226,10 +226,8 @@ export async function fetchDevices(): Promise<GpsDevice[]> {
         "columns[5][name]": "plate_number",
         "columns[6][data]": "registration_number",
         "columns[6][name]": "registration_number",
-        "columns[7][data]": "time",
-        "columns[7][name]": "time",
-        "columns[8][data]": "installation_date",
-        "columns[8][name]": "installation_date",
+        "columns[7][data]": "installation_date",
+        "columns[7][name]": "installation_date",
       },
       headers: {
         "Cookie": cookieHeader(),
@@ -456,7 +454,8 @@ async function refreshSensorCache(): Promise<void> {
       },
     });
     if (resp.data?.data && Array.isArray(resp.data.data)) {
-      for (const item of resp.data.data as Record<string, unknown>[]) {
+      const allItems = resp.data.data as Record<string, unknown>[];
+      for (const item of allItems) {
         const id = String(item.id ?? "");
         if (!id) continue;
         const sensors = Array.isArray(item.sensors) ? (item.sensors as DeviceSensor[]) : [];
@@ -768,13 +767,17 @@ async function fetchAllDeviceLastSeenTimes(): Promise<Map<string, string>> {
     return new Map(lastSeenTimesCache);
   }
 
-  // ── Fallback: direct items_json request ───────────────────────────────────
+  // ── Fallback: items_json with 7-day lookback to capture recently offline devices ──
   const ok = await ensureSession();
   if (!ok) return new Map();
   const client = createClient();
   try {
+    // Request all updates from the past 7 days (in seconds).
+    // This captures devices like CAJA SECA that were active 20+ hours ago
+    // but don't appear in the initial snapshot (time=0 returns only ~30 very-recent ones).
+    const sevenDaysAgoSec = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
     const resp = await client.get("/objects/items_json", {
-      params: { time: 0 },
+      params: { time: sevenDaysAgoSec },
       headers: {
         Cookie: cookieHeader(),
         "X-Requested-With": "XMLHttpRequest",
@@ -784,16 +787,30 @@ async function fetchAllDeviceLastSeenTimes(): Promise<Map<string, string>> {
     });
     const result = new Map<string, string>();
     if (resp.data?.items && Array.isArray(resp.data.items)) {
-      for (const item of resp.data.items as Record<string, unknown>[]) {
+      const rawItems = resp.data.items as Record<string, unknown>[];
+      for (const item of rawItems) {
         const id = String(item.id ?? "");
-        const time = String(item.time ?? "");
-        if (id && time) {
-          result.set(id, time);
-          lastSeenTimesCache.set(id, time); // populate shared cache too
+        // Use Math.max(timestamp, acktimestamp) — same logic as platform JS
+        const gpsTime = String(item.time ?? "");
+        const ts = Number(item.timestamp ?? 0);
+        const ackTs = Number(item.acktimestamp ?? 0);
+        const bestTs = Math.max(ts, ackTs);
+        // Prefer formatted GPS time string; fall back to computing from unix timestamps
+        let timeVal = gpsTime;
+        if (!timeVal && bestTs > 0) {
+          const d = new Date(bestTs * 1000);
+          const hh = d.getHours();
+          const ampm = hh >= 12 ? "PM" : "AM";
+          const h12 = hh % 12 || 12;
+          timeVal = `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()} ${String(h12).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")} ${ampm}`;
+        }
+        if (id && timeVal) {
+          result.set(id, timeVal);
+          lastSeenTimesCache.set(id, timeVal);
         }
       }
     }
-    logger.info({ count: result.size }, "Fetched device last-seen times from items_json (fallback)");
+    logger.info({ count: result.size }, "Fetched device last-seen times (7-day lookback)");
     return result;
   } catch (err) {
     logger.error({ err }, "Failed to fetch device last-seen times");

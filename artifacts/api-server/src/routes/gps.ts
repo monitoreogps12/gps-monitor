@@ -66,6 +66,7 @@ router.get("/gps/events/recent", (req, res): void => {
   res.json(GetRecentEventsResponse.parse(events));
 });
 
+
 router.get("/gps/offline-report", async (req, res): Promise<void> => {
   try {
     const report = await fetchOfflineReport();

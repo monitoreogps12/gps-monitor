@@ -1,1 +1,2 @@
 - [Replit production DB connectivity](replit-production-db.md) — use APP_DATABASE_URL + Neon HTTP driver; Replit overrides DATABASE_URL and blocks port 5432 in production.
+- [items_json cursor behavior](items-json-cursor.md) — time=0 only returns ~27 recent devices; use 7-day Unix timestamp to capture offline ones for the Reportes module.
