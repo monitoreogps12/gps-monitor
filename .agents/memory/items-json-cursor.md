@@ -10,6 +10,11 @@ description: How the GPS platform's items_json endpoint works as a session curso
 
 **How to apply:** In `fetchAllDeviceLastSeenTimes()` (gps-service.ts), use `sevenDaysAgoSec` as the `time` parameter instead of `0`. The response includes both `time` (formatted GPS string like "DD-MM-YYYY HH:MM:SS AM") and `timestamp`/`acktimestamp` (Unix seconds). Platform JS logic: `Math.max(timestamp, acktimestamp)`.
 
+## Excel Export as Better Source
+The platform's "ObjectListLookupTable" Excel export (downloaded from the platform UI) has "Ultima conexión" for ALL 476 devices. Parsed to JSON at `artifacts/api-server/src/data/device-last-seen.json` with `byImei` and `byPlate` indexes. This is now the PRIMARY source in `fetchOfflineReport`, covering 174/217 offline devices. Remaining 43 have no matching IMEI/plate in the Excel.
+
+The Excel was generated at 2026-08-10T14:07:16. To refresh: user re-downloads from platform UI and re-uploads; the JSON file must be regenerated. Finding the platform's export URL would automate this.
+
 ## Devices still showing installationDate as lastConnection
 128 devices (of ~218 offline) show installationDate as lastConnection — these are legitimately disconnected for 7+ days (some 1800-1900 days). This is correct behavior; no GPS data is available for them in the 7-day window.
 

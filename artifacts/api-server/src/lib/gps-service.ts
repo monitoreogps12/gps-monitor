@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance } from "axios";
 import * as cheerio from "cheerio";
 import { logger } from "./logger";
+import deviceLastSeenRaw from "../data/device-last-seen.json";
 
 const GPS_BASE_URL = "https://rastreoplus247.com";
 const GPS_EMAIL = "olintoflores1@gmail.com";
@@ -825,12 +826,24 @@ async function fetchAllDeviceLastSeenTimes(): Promise<Map<string, string>> {
   }
 }
 
+// Typed lookup from Excel export (IMEI → last-seen time string)
+const excelLookup = deviceLastSeenRaw as {
+  byImei: Record<string, string>;
+  byPlate: Record<string, string>;
+  generatedAt: string;
+};
+
 /**
  * Returns all offline/disconnected devices with category based on days offline.
  * Category: descanso (1-2d), contacto (3-7d), urgente (7+d).
+ *
+ * Last-seen priority:
+ *  1. Excel export lookup (byImei, then byPlate) — covers all 476 platform devices
+ *  2. Live items_json 7-day lookback (from fetchAllDeviceLastSeenTimes)
+ *  3. installationDate fallback (shows "Sin datos" in UI)
  */
 export async function fetchOfflineReport(): Promise<OfflineReportItem[]> {
-  const [devices, lastSeenTimes] = await Promise.all([
+  const [devices, liveLastSeen] = await Promise.all([
     fetchDevices(),
     fetchAllDeviceLastSeenTimes(),
   ]);
@@ -843,18 +856,35 @@ export async function fetchOfflineReport(): Promise<OfflineReportItem[]> {
   const result: OfflineReportItem[] = [];
 
   for (const device of disconnected) {
-    // Real GPS last-seen time from the 7-day lookback (may be undefined for >7d offline devices)
-    const realGpsTime = lastSeenTimes.get(device.id) ?? "";
+    // 1. Excel export lookup (most complete — covers all devices including long-offline ones)
+    const excelTime =
+      (device.imei ? excelLookup.byImei[device.imei] : undefined) ??
+      (device.plate ? excelLookup.byPlate[device.plate] : undefined) ??
+      "";
+
+    // 2. Live 7-day items_json lookback
+    const liveTime = liveLastSeen.get(device.id) ?? "";
+
+    // Pick most recent between excel and live sources
+    const excelMs = parseGpsTime(excelTime);
+    const liveMs = parseGpsTime(liveTime);
+    let realGpsTime = "";
+    if (excelMs !== null && liveMs !== null) {
+      realGpsTime = excelMs >= liveMs ? excelTime : liveTime;
+    } else if (excelMs !== null) {
+      realGpsTime = excelTime;
+    } else if (liveMs !== null) {
+      realGpsTime = liveTime;
+    }
 
     // For daysOffline/category: use GPS time if available, else fall back to installationDate
-    // (gives a reasonable estimate even when GPS time is unknown)
     const timeForCalc = realGpsTime || device.lastConnection;
     const lastSeenMs = parseGpsTime(timeForCalc);
     const daysOffline =
       lastSeenMs != null ? Math.floor((now - lastSeenMs) / 86_400_000) : -1;
 
     let category: "descanso" | "contacto" | "urgente";
-    if (daysOffline < 0) category = "urgente"; // unknown → treat as urgent
+    if (daysOffline < 0) category = "urgente";
     else if (daysOffline <= 2) category = "descanso";
     else if (daysOffline <= 7) category = "contacto";
     else category = "urgente";
@@ -865,7 +895,7 @@ export async function fetchOfflineReport(): Promise<OfflineReportItem[]> {
       plate: device.plate,
       simNumber: device.simNumber,
       model: device.model,
-      // Empty string when no real GPS time → frontend will show "Sin datos"
+      // Empty string when no GPS time available → frontend shows "Sin datos"
       lastConnection: realGpsTime,
       daysOffline,
       category,
