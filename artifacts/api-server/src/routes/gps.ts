@@ -5,6 +5,7 @@ import {
   fetchFleetStats,
   getConnectionStatus,
   fetchDeviceSensors,
+  fetchOfflineReport,
 } from "../lib/gps-service";
 import { getRecentEvents } from "../bots/notifications";
 import {
@@ -14,6 +15,7 @@ import {
   GetConnectionStatusResponse,
   GetRecentEventsResponse,
   GetDeviceSensorsResponse,
+  GetOfflineReportResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -62,6 +64,16 @@ router.get("/gps/events/recent", (req, res): void => {
   const limit = Math.min(Number(req.query.limit) || 50, 100);
   const events = getRecentEvents(limit);
   res.json(GetRecentEventsResponse.parse(events));
+});
+
+router.get("/gps/offline-report", async (req, res): Promise<void> => {
+  try {
+    const report = await fetchOfflineReport();
+    res.json(GetOfflineReportResponse.parse(report));
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch offline report");
+    res.status(503).json({ error: "Cannot connect to GPS tracking platform" });
+  }
 });
 
 router.get("/gps/devices/:id/sensors", async (req, res): Promise<void> => {

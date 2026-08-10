@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Map as MapIcon, Wrench, Users, Satellite } from "lucide-react";
+import { LayoutDashboard, Map as MapIcon, Wrench, Users, Satellite, FileBarChart2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
@@ -10,6 +10,7 @@ export function Sidebar() {
     { href: "/soporte",  label: "Soporte Técnico", icon: Wrench          },
     { href: "/clientes", label: "Clientes",        icon: Users           },
     { href: "/mapa",     label: "Mapa en Vivo",    icon: MapIcon         },
+    { href: "/reportes", label: "Reportes",         icon: FileBarChart2   },
   ];
 
   return (

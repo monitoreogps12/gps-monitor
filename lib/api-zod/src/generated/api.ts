@@ -131,6 +131,24 @@ export const GetDeviceSensorsResponse = zod.array(GetDeviceSensorsResponseItem)
 
 
 /**
+ * Returns all disconnected devices categorized by days offline (1-2 Descanso, 3-7 Contacto, 7+ Urgente). Includes SIM, model, plate, name and installation date.
+ * @summary Get offline devices report
+ */
+export const GetOfflineReportResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "plate": zod.string(),
+  "simNumber": zod.string(),
+  "model": zod.string().nullish(),
+  "lastConnection": zod.string().describe('Last time the device was seen online (raw string from GPS platform)'),
+  "daysOffline": zod.number().describe('Number of days the device has been offline (negative means unknown)'),
+  "category": zod.enum(['descanso', 'contacto', 'urgente']).describe('descanso=1-2 days, contacto=3-7 days, urgente=7+ days'),
+  "installationDate": zod.string().nullish().describe('Device installation date from GPS platform')
+})
+export const GetOfflineReportResponse = zod.array(GetOfflineReportResponseItem)
+
+
+/**
  * Returns whether the backend is authenticated with rastreoplus247.com
  * @summary Get tracking platform connection status
  */

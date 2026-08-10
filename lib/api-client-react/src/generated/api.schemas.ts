@@ -199,6 +199,38 @@ export interface LinkTelegramInput {
   telegramUsername?: string;
 }
 
+/**
+ * descanso=1-2 days, contacto=3-7 days, urgente=7+ days
+ */
+export type OfflineReportItemCategory = typeof OfflineReportItemCategory[keyof typeof OfflineReportItemCategory];
+
+
+export const OfflineReportItemCategory = {
+  descanso: 'descanso',
+  contacto: 'contacto',
+  urgente: 'urgente',
+} as const;
+
+export interface OfflineReportItem {
+  id: string;
+  name: string;
+  plate: string;
+  simNumber: string;
+  /** @nullable */
+  model?: string | null;
+  /** Last time the device was seen online (raw string from GPS platform) */
+  lastConnection: string;
+  /** Number of days the device has been offline (negative means unknown) */
+  daysOffline: number;
+  /** descanso=1-2 days, contacto=3-7 days, urgente=7+ days */
+  category: OfflineReportItemCategory;
+  /**
+     * Device installation date from GPS platform
+     * @nullable
+     */
+  installationDate?: string | null;
+}
+
 export interface RecentEvent {
   id: number;
   platformEventId: number;

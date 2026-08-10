@@ -35,6 +35,7 @@ import type {
   LinkTelegramInput,
   LivePosition,
   NotifyAssignmentResult,
+  OfflineReportItem,
   RecentEvent,
   UpdateClientInput
 } from './api.schemas';
@@ -514,6 +515,84 @@ export function useGetDeviceSensors<TData = Awaited<ReturnType<typeof getDeviceS
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDeviceSensorsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetOfflineReportUrl = () => {
+
+
+
+
+  return `/api/gps/offline-report`
+}
+
+/**
+ * Returns all disconnected devices categorized by days offline (1-2 Descanso, 3-7 Contacto, 7+ Urgente). Includes SIM, model, plate, name and installation date.
+ * @summary Get offline devices report
+ */
+export const getOfflineReport = async ( options?: RequestInit): Promise<OfflineReportItem[]> => {
+
+  return customFetch<OfflineReportItem[]>(getGetOfflineReportUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfflineReportQueryKey = () => {
+    return [
+    `/api/gps/offline-report`
+    ] as const;
+    }
+
+
+export const getGetOfflineReportQueryOptions = <TData = Awaited<ReturnType<typeof getOfflineReport>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfflineReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfflineReportQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfflineReport>>> = ({ signal }) => getOfflineReport({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfflineReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfflineReportQueryResult = NonNullable<Awaited<ReturnType<typeof getOfflineReport>>>
+export type GetOfflineReportQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get offline devices report
+ */
+
+export function useGetOfflineReport<TData = Awaited<ReturnType<typeof getOfflineReport>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfflineReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfflineReportQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

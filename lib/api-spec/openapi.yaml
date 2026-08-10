@@ -139,6 +139,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /gps/offline-report:
+    get:
+      operationId: getOfflineReport
+      tags: [gps]
+      summary: Get offline devices report
+      description: Returns all disconnected devices categorized by days offline (1-2 Descanso, 3-7 Contacto, 7+ Urgente). Includes SIM, model, plate, name and installation date.
+      responses:
+        "200":
+          description: Offline devices categorized
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfflineReportItem"
+        "503":
+          description: Cannot connect to tracking platform
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /gps/connection:
     get:
       operationId: getConnectionStatus
@@ -642,6 +664,41 @@ components:
           type: string
         telegramUsername:
           type: string
+
+    OfflineReportItem:
+      type: object
+      required:
+        - id
+        - name
+        - plate
+        - simNumber
+        - lastConnection
+        - daysOffline
+        - category
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        plate:
+          type: string
+        simNumber:
+          type: string
+        model:
+          type: ["string", "null"]
+        lastConnection:
+          type: string
+          description: Last time the device was seen online (raw string from GPS platform)
+        daysOffline:
+          type: integer
+          description: Number of days the device has been offline (negative means unknown)
+        category:
+          type: string
+          enum: [descanso, contacto, urgente]
+          description: "descanso=1-2 days, contacto=3-7 days, urgente=7+ days"
+        installationDate:
+          type: ["string", "null"]
+          description: Device installation date from GPS platform
 
     RecentEvent:
       type: object

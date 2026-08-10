@@ -696,6 +696,132 @@ async function _unusedProbeMonitoringPage(): Promise<Record<string, unknown>> {
   return results;
 }
 
+export interface OfflineReportItem {
+  id: string;
+  name: string;
+  plate: string;
+  simNumber: string;
+  model: string | null;
+  lastConnection: string;
+  daysOffline: number;
+  category: "descanso" | "contacto" | "urgente";
+  installationDate: string | null;
+}
+
+/**
+ * Parses a GPS platform time string to a JS timestamp.
+ * Handles formats: "DD-MM-YYYY HH:MM:SS AM/PM" and ISO-like strings.
+ */
+function parseGpsTime(timeStr: string): number | null {
+  if (!timeStr) return null;
+  // Format: "20-05-2026 10:05:32 AM"
+  const ddmmyyyy = timeStr.match(
+    /^(\d{2})-(\d{2})-(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)?/i
+  );
+  if (ddmmyyyy) {
+    const [, dd, mm, yyyy, hh, min, ss, ampm] = ddmmyyyy;
+    let hour = parseInt(hh, 10);
+    if (ampm?.toUpperCase() === "PM" && hour < 12) hour += 12;
+    if (ampm?.toUpperCase() === "AM" && hour === 12) hour = 0;
+    const d = new Date(
+      parseInt(yyyy, 10),
+      parseInt(mm, 10) - 1,
+      parseInt(dd, 10),
+      hour,
+      parseInt(min, 10),
+      parseInt(ss, 10)
+    );
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+  const d = new Date(timeStr);
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+
+/**
+ * Fetches the last-seen timestamp for ALL devices (including offline ones with no coordinates).
+ * Returns a map of device id → last seen time string.
+ */
+async function fetchAllDeviceLastSeenTimes(): Promise<Map<string, string>> {
+  const ok = await ensureSession();
+  if (!ok) return new Map();
+  const client = createClient();
+  try {
+    const resp = await client.get("/objects/items_json", {
+      params: { time: 0 },
+      headers: {
+        Cookie: cookieHeader(),
+        "X-Requested-With": "XMLHttpRequest",
+        Referer: `${GPS_BASE_URL}/objects`,
+        Accept: "application/json",
+      },
+    });
+    const result = new Map<string, string>();
+    if (resp.data?.items && Array.isArray(resp.data.items)) {
+      for (const item of resp.data.items as Record<string, unknown>[]) {
+        const id = String(item.id ?? "");
+        const time = String(item.time ?? "");
+        if (id && time) result.set(id, time);
+      }
+    }
+    return result;
+  } catch (err) {
+    logger.error({ err }, "Failed to fetch all device last-seen times");
+    return new Map();
+  }
+}
+
+/**
+ * Returns all offline/disconnected devices with category based on days offline.
+ * Category: descanso (1-2d), contacto (3-7d), urgente (7+d).
+ */
+export async function fetchOfflineReport(): Promise<OfflineReportItem[]> {
+  const [devices, lastSeenTimes] = await Promise.all([
+    fetchDevices(),
+    fetchAllDeviceLastSeenTimes(),
+  ]);
+
+  const disconnected = devices.filter(
+    (d) => d.status === "disconnected_blue" || d.status === "disconnected_red"
+  );
+
+  const now = Date.now();
+  const result: OfflineReportItem[] = [];
+
+  for (const device of disconnected) {
+    // Prefer real last-seen time from live endpoint; fall back to installation_date
+    const lastSeenStr = lastSeenTimes.get(device.id) || device.lastConnection;
+    const lastSeenMs = parseGpsTime(lastSeenStr);
+    const daysOffline =
+      lastSeenMs != null ? Math.floor((now - lastSeenMs) / 86_400_000) : -1;
+
+    let category: "descanso" | "contacto" | "urgente";
+    if (daysOffline < 0) category = "urgente"; // unknown → treat as urgent
+    else if (daysOffline <= 2) category = "descanso";
+    else if (daysOffline <= 7) category = "contacto";
+    else category = "urgente";
+
+    result.push({
+      id: device.id,
+      name: device.name,
+      plate: device.plate,
+      simNumber: device.simNumber,
+      model: device.model,
+      lastConnection: lastSeenStr,
+      daysOffline,
+      category,
+      installationDate: device.lastConnection || null,
+    });
+  }
+
+  // Sort: most urgent first, then by days offline descending
+  return result.sort((a, b) => {
+    const order = { urgente: 0, contacto: 1, descanso: 2 };
+    if (order[a.category] !== order[b.category])
+      return order[a.category] - order[b.category];
+    return b.daysOffline - a.daysOffline;
+  });
+}
+
 export async function getConnectionStatus() {
   const ok = await ensureSession();
   return {

@@ -23,5 +23,7 @@ export * from './linkTelegramInput';
 export * from './livePosition';
 export * from './livePositionStatus';
 export * from './notifyAssignmentResult';
+export * from './offlineReportItem';
+export * from './offlineReportItemCategory';
 export * from './recentEvent';
 export * from './updateClientInput';
