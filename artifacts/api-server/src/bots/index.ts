@@ -1,5 +1,6 @@
 import { startClientBot } from "./client-bot";
 import { startSupportBot } from "./support-bot";
+import { startBorderAlertBot, getBorderAlertBot } from "./border-alert-bot";
 import { logger } from "../lib/logger";
 import type { Telegraf } from "telegraf";
 
@@ -8,6 +9,7 @@ let _supportBot: Telegraf | null = null;
 
 export function getClientBot(): Telegraf | null { return _clientBot; }
 export function getSupportBot(): Telegraf | null { return _supportBot; }
+export { getBorderAlertBot };
 
 export function startBots(): void {
   if (process.env["NODE_ENV"] !== "production") {
@@ -27,5 +29,11 @@ export function startBots(): void {
     _supportBot = startSupportBot();
   } catch (err) {
     logger.error({ err }, "Error starting support bot");
+  }
+  try {
+    startBorderAlertBot();
+    logger.info("Border alert bot started");
+  } catch (err) {
+    logger.error({ err }, "Error starting border alert bot");
   }
 }

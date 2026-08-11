@@ -4,6 +4,7 @@ import { clientsTable, clientVehiclesTable } from "@workspace/db";
 import { isNotNull } from "drizzle-orm";
 import { fetchPlatformEvents, fetchDevices, fetchLivePositions } from "../lib/gps-service";
 import { sendSupportBotAlert } from "./support-bot";
+import { sendBorderAlert } from "./border-alert-bot";
 import { logger } from "../lib/logger";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -213,6 +214,9 @@ export function startNotificationService(bot: Telegraf): void {
 
   // Start GSM signal monitor (runs every 5 minutes)
   startGsmMonitor();
+
+  // Start Colombia border proximity monitor (runs every 5 minutes)
+  startBorderMonitor();
 }
 
 // ── GSM Signal Monitor ───────────────────────────────────────────────────────
@@ -272,4 +276,134 @@ function startGsmMonitor(): void {
     void checkGsmSignals();
     setInterval(() => { void checkGsmSignals(); }, GSM_POLL_INTERVAL_MS);
   }, 2 * 60 * 1000);
+}
+
+// ── Colombia Border Proximity Monitor ────────────────────────────────────────
+//
+// Sends an alert via the border-alert bot to all subscribers whenever a
+// Teltonika-SIM vehicle is within BORDER_THRESHOLD_KM of the
+// Venezuela-Colombia land border.
+//
+// Border polyline: simplified key points from Castilletes (north) to the
+// Brazil tripoint (south).  Haversine distance to each segment is checked.
+
+const BORDER_THRESHOLD_KM = 30;
+const BORDER_POLL_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
+const BORDER_COOLDOWN_MS      = 4 * 60 * 60 * 1000; // 4 hours per vehicle
+
+/** deviceId → timestamp of last border alert sent */
+const borderAlertCooldown = new Map<string, number>();
+
+/** Approximate Venezuela-Colombia border as an ordered polyline [lat, lng]. */
+const COLOMBIA_BORDER: [number, number][] = [
+  [11.85, -71.32],  // Castilletes — Caribbean coast
+  [11.36, -72.42],  // Paraguachón
+  [10.38, -72.86],  // West of Maracaibo lake / Zulia
+  [ 9.60, -72.85],  // Machiques area
+  [ 8.60, -72.72],  // La Victoria / Táchira
+  [ 7.87, -72.44],  // San Antonio del Táchira / Cúcuta
+  [ 7.07, -70.73],  // Arauca crossing
+  [ 6.21, -67.49],  // Puerto Páez / Puerto Carreño (Orinoco)
+  [ 4.06, -67.72],  // San Fernando de Atabapo
+  [ 1.84, -66.88],  // Piedra del Cocuy — Brazil tripoint
+];
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Minimum haversine distance (km) from point to the segment (p1→p2). */
+function distToSegmentKm(
+  lat: number, lng: number,
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
+): number {
+  const dx = lat2 - lat1, dy = lng2 - lng1;
+  if (dx === 0 && dy === 0) return haversineKm(lat, lng, lat1, lng1);
+  const t = Math.max(0, Math.min(1,
+    ((lat - lat1) * dx + (lng - lng1) * dy) / (dx * dx + dy * dy),
+  ));
+  return haversineKm(lat, lng, lat1 + t * dx, lng1 + t * dy);
+}
+
+function isNearColombiaBorder(lat: number, lng: number): boolean {
+  for (let i = 0; i < COLOMBIA_BORDER.length - 1; i++) {
+    const [lat1, lng1] = COLOMBIA_BORDER[i]!;
+    const [lat2, lng2] = COLOMBIA_BORDER[i + 1]!;
+    if (distToSegmentKm(lat, lng, lat1, lng1, lat2, lng2) <= BORDER_THRESHOLD_KM) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function checkColombiaBorderAlerts(): Promise<void> {
+  try {
+    const positions = await fetchLivePositions();
+
+    // Only Teltonika SIM lines
+    const teltonika = positions.filter(
+      (p) => p.simNumber?.toUpperCase().startsWith("TELTONIKA "),
+    );
+
+    if (teltonika.length === 0) return;
+
+    const nearBorder = teltonika.filter((p) => isNearColombiaBorder(p.lat, p.lng));
+    if (nearBorder.length === 0) return;
+
+    const now = Date.now();
+    const toAlert = nearBorder.filter((p) => {
+      const last = borderAlertCooldown.get(p.id) ?? 0;
+      return now - last > BORDER_COOLDOWN_MS;
+    });
+
+    if (toAlert.length === 0) return;
+
+    for (const p of toAlert) {
+      const mapsUrl = `https://maps.google.com/?q=${p.lat},${p.lng}`;
+      const hora = new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" });
+
+      const text =
+        `🚨 *ALERTA DE FRONTERA — POSIBLE CAMBIO DE COBERTURA*\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `🚗 *Vehículo:* ${p.name || "—"}\n` +
+        `🔖 *Placa:*    ${p.plate || "—"}\n` +
+        `📱 *SIM:*      ${p.simNumber || "—"}\n` +
+        `🖥️ *Modelo:*   ${p.model || "—"}\n` +
+        `🛰️ *IMEI:*     \`${p.imei || "—"}\`\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `📡 *Estado:* ${p.status}\n` +
+        (p.speed !== null ? `🚀 *Velocidad:* ${p.speed} km/h\n` : "") +
+        `📍 *Posición:* [Ver en Google Maps](${mapsUrl})\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `⚠️ Vehículo a menos de *${BORDER_THRESHOLD_KM} km* de la frontera Colombia-Venezuela.\n` +
+        `🔄 *Revisar SIM* — posible cambio de cobertura Claro/Movistar.\n` +
+        `🕒 ${hora}`;
+
+      await sendBorderAlert(text, p.lat, p.lng);
+      borderAlertCooldown.set(p.id, now);
+
+      logger.info(
+        { deviceId: p.id, plate: p.plate, sim: p.simNumber, lat: p.lat, lng: p.lng },
+        "Colombia border alert sent",
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, "Colombia border check failed");
+  }
+}
+
+function startBorderMonitor(): void {
+  // First check after 3 minutes (allow live position cache to warm up)
+  setTimeout(() => {
+    void checkColombiaBorderAlerts();
+    setInterval(() => { void checkColombiaBorderAlerts(); }, BORDER_POLL_INTERVAL_MS);
+  }, 3 * 60 * 1000);
 }
