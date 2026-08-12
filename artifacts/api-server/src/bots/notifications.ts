@@ -373,21 +373,31 @@ async function checkColombiaBorderAlerts(): Promise<void> {
       const mapsUrl = `https://maps.google.com/?q=${p.lat},${p.lng}`;
       const hora = new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" });
 
+      const estadoLabel: Record<string, string> = {
+        moving: "En Movimiento 🟢",
+        ack: "ACK 🟡",
+        engine_idle: "Ralentí 🟠",
+        disconnected_blue: "Desconectado 🔵",
+        disconnected_red: "Sin Señal 🔴",
+      };
+      const estado = estadoLabel[p.status] ?? p.status;
+
       const text =
-        `🚨 *ALERTA DE FRONTERA — POSIBLE CAMBIO DE COBERTURA*\n` +
+        `🚨 *ALERTA DE FRONTERA — COLOMBIA/VENEZUELA*\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
         `🚗 *Vehículo:* ${p.name || "—"}\n` +
         `🔖 *Placa:*    ${p.plate || "—"}\n` +
         `📱 *SIM:*      ${p.simNumber || "—"}\n` +
         `🖥️ *Modelo:*   ${p.model || "—"}\n` +
-        `🛰️ *IMEI:*     \`${p.imei || "—"}\`\n` +
+        `🛰️ *IMEI:*     ${p.imei || "—"}\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
-        `📡 *Estado:* ${p.status}\n` +
+        `📡 *Estado:* ${estado}\n` +
         (p.speed !== null ? `🚀 *Velocidad:* ${p.speed} km/h\n` : "") +
         `📍 *Posición:* [Ver en Google Maps](${mapsUrl})\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
-        `⚠️ Vehículo a menos de *${BORDER_THRESHOLD_KM} km* de la frontera Colombia-Venezuela.\n` +
-        `🔄 *Revisar SIM* — posible cambio de cobertura Claro/Movistar.\n` +
+        `📌 Zona: *Frontera Colombia-Venezuela*\n` +
+        `⚠️ A menos de *${BORDER_THRESHOLD_KM} km* de la frontera\n` +
+        `🔄 *Revisar SIM* — posible cambio de cobertura\n` +
         `🕒 ${hora}`;
 
       await sendBorderAlert(text, p.lat, p.lng);
@@ -468,6 +478,15 @@ async function checkGeofenceAlerts(): Promise<void> {
         const hora = new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" });
         const mapsUrl = `https://maps.google.com/?q=${p.lat},${p.lng}`;
 
+        const estadoLabel: Record<string, string> = {
+          moving: "En Movimiento 🟢",
+          ack: "ACK 🟡",
+          engine_idle: "Ralentí 🟠",
+          disconnected_blue: "Desconectado 🔵",
+          disconnected_red: "Sin Señal 🔴",
+        };
+        const estado = estadoLabel[p.status] ?? p.status;
+
         const text =
           `🚧 *ALERTA DE GEOCERCA — ${zone.name.toUpperCase()}*\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
@@ -475,9 +494,9 @@ async function checkGeofenceAlerts(): Promise<void> {
           `🔖 *Placa:*    ${p.plate || "—"}\n` +
           `📱 *SIM:*      ${p.simNumber || "—"}\n` +
           `🖥️ *Modelo:*   ${p.model || "—"}\n` +
-          `🛰️ *IMEI:*     \`${p.imei || "—"}\`\n` +
+          `🛰️ *IMEI:*     ${p.imei || "—"}\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
-          `📡 *Estado:* ${p.status}\n` +
+          `📡 *Estado:* ${estado}\n` +
           (p.speed !== null ? `🚀 *Velocidad:* ${p.speed} km/h\n` : "") +
           `📍 *Posición:* [Ver en Google Maps](${mapsUrl})\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
