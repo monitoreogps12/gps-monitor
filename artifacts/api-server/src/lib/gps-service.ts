@@ -305,8 +305,18 @@ let lastSensorFetch = 0;
 const SENSOR_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Fallback last-known positions for ALL devices from /objects/items?full=true
-// Key: device id, Value: partial LivePosition (lat/lng/time only)
-const fallbackPositions = new Map<string, { lat: number; lng: number; lastConnection: string }>();
+// Key: device id, Value: partial LivePosition (lat/lng/time/status fields)
+const fallbackPositions = new Map<string, {
+  lat: number;
+  lng: number;
+  lastConnection: string;
+  online: string;
+  engineStatus: boolean;
+  speed: number | null;
+  heading: number | null;
+  altitude: number | null;
+  totalDistance: number | null;
+}>();
 
 export async function fetchLivePositions(): Promise<LivePosition[]> {
   // Return cached if very fresh
@@ -433,11 +443,11 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
             id,
             name: dev?.name ?? id,
             plate: dev ? cleanPlate(dev.plate) : id,
-            status: "disconnected_blue",
+            status: parseOnlineStatus(fb.online, fb.engineStatus),
             lat: fb.lat,
             lng: fb.lng,
-            speed: 0,
-            heading: null,
+            speed: fb.speed,
+            heading: fb.heading,
             lastConnection: fb.lastConnection || dev?.lastConnection || "",
             address: null,
             imei: dev?.imei ?? null,
@@ -446,8 +456,8 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
             driver: dev?.driver ?? null,
             zone: null,
             engineStatus: false,
-            altitude: null,
-            totalDistance: null,
+            altitude: fb.altitude,
+            totalDistance: fb.totalDistance,
             stopDurationSec: null,
             engineHours: null,
             batteryLevel: batterySensor?.value ?? null,
@@ -521,16 +531,30 @@ async function refreshSensorCache(): Promise<void> {
         const sensors = Array.isArray(item.sensors) ? (item.sensors as DeviceSensor[]) : [];
         sensorCache.set(id, sensors);
 
-        // Fallback last-known position for offline vehicles
-        // The /objects/items?full=true response includes lat/lng for all devices,
-        // even those not returned by items_json (no recent GPS activity).
+        // Fallback last-known position for ALL devices
+        // /objects/items?full=true includes lat/lng + status for every device.
         const rawLat = item.lat ?? item.latitude ?? null;
         const rawLng = item.lng ?? item.longitude ?? null;
         const lat = rawLat != null ? parseFloat(String(rawLat)) : NaN;
         const lng = rawLng != null ? parseFloat(String(rawLng)) : NaN;
         if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-          const timeStr = String(item.time ?? item.last_connection ?? "");
-          fallbackPositions.set(id, { lat, lng, lastConnection: timeStr });
+          const timeStr    = String(item.time ?? item.last_connection ?? "");
+          const engineSt   = Boolean(item.engine_status ?? item.engine ?? false);
+          const onlineStr  = String(item.online ?? "");
+          const speed      = item.speed != null ? parseFloat(String(item.speed)) : null;
+          const heading    = item.course != null ? parseFloat(String(item.course)) : null;
+          const altitude   = item.altitude != null ? parseFloat(String(item.altitude)) : null;
+          const totalDist  = item.total_distance != null ? parseFloat(String(item.total_distance)) : null;
+          fallbackPositions.set(id, {
+            lat, lng,
+            lastConnection: timeStr,
+            online: onlineStr,
+            engineStatus: engineSt,
+            speed: !isNaN(speed!) ? speed : null,
+            heading: !isNaN(heading!) ? heading : null,
+            altitude: !isNaN(altitude!) ? altitude : null,
+            totalDistance: !isNaN(totalDist!) ? totalDist : null,
+          });
           fallbackCount++;
         }
       }
