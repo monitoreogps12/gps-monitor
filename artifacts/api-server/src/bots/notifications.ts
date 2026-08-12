@@ -287,7 +287,7 @@ function startGsmMonitor(): void {
 // Border polyline: simplified key points from Castilletes (north) to the
 // Brazil tripoint (south).  Haversine distance to each segment is checked.
 
-const BORDER_THRESHOLD_KM = 30;
+const BORDER_THRESHOLD_KM = 60;
 const BORDER_POLL_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
 const BORDER_COOLDOWN_MS      = 4 * 60 * 60 * 1000; // 4 hours per vehicle
 
