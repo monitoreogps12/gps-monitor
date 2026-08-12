@@ -215,10 +215,9 @@ export function startNotificationService(bot: Telegraf): void {
   // Start GSM signal monitor (runs every 5 minutes)
   startGsmMonitor();
 
-  // Start Colombia border proximity monitor (runs every 5 minutes)
-  startBorderMonitor();
-
   // Start custom geofence monitor (runs every 2 minutes)
+  // Note: the old fixed 60km border line check has been replaced by this —
+  // draw your own zones on the map to get alerts for the exact areas you care about.
   startGeofenceMonitor();
 }
 
