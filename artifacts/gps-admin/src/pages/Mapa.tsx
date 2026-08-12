@@ -312,7 +312,9 @@ export function Mapa() {
 
       const lastConn = pos.lastConnection ? new Date(pos.lastConnection).getTime() : 0;
       const isDisc   = pos.status === 'disconnected_blue' || pos.status === 'disconnected_red';
-      if (isDisc && lastConn > 0 && (now - lastConn) > SEVEN_DAYS_MS) { hidden++; return; }
+      // Only hide if disconnected AND last connection unknown (truly no data)
+      // We show ALL vehicles with a known position, regardless of days offline
+      if (isDisc && lastConn === 0 && !pos.lat) { hidden++; return; }
 
       activeIds.add(pos.id);
       const color   = getStatusColor(pos.status);

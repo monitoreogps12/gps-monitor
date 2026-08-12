@@ -304,6 +304,10 @@ const sensorCache = new Map<string, DeviceSensor[]>();
 let lastSensorFetch = 0;
 const SENSOR_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Fallback last-known positions for ALL devices from /objects/items?full=true
+// Key: device id, Value: partial LivePosition (lat/lng/time only)
+const fallbackPositions = new Map<string, { lat: number; lng: number; lastConnection: string }>();
+
 export async function fetchLivePositions(): Promise<LivePosition[]> {
   // Return cached if very fresh
   if (Date.now() - lastLiveFetch < LIVE_CACHE_TTL && cachedLivePositions.length > 0) {
@@ -405,7 +409,56 @@ export async function fetchLivePositions(): Promise<LivePosition[]> {
       lastLiveFetch = Date.now();
 
       // Trigger sensor cache refresh in background (non-blocking, every 5 mins)
-      void refreshSensorCache();
+      // refreshSensorCache also populates fallbackPositions with last-known coords
+      void refreshSensorCache().then(async () => {
+        // After sensor cache refresh, merge fallback positions for vehicles
+        // that items_json never returns (long-offline, no active GPS signal).
+        // Ensure device metadata is loaded so names/plates are correct.
+        const allDevs = await fetchDevices().catch(() => cachedDevices);
+        const liveIds = new Set(cachedLivePositions.map((p) => p.id));
+        let added = 0;
+        for (const [id, fb] of fallbackPositions) {
+          if (liveIds.has(id)) continue; // already in live feed
+          const dev = allDevs.find((d) => d.id === id);
+          const sensors = sensorCache.get(id) ?? [];
+          const batterySensor = sensors.find((s) => s.type === "battery");
+          const gsmSensor    = sensors.find((s) => s.type === "gsm");
+          const gsmRaw = gsmSensor?.val;
+          const gsmSignal =
+            gsmRaw != null && gsmRaw !== "-" && !isNaN(parseFloat(String(gsmRaw)))
+              ? parseFloat(String(gsmRaw))
+              : null;
+
+          cachedLivePositions.push({
+            id,
+            name: dev?.name ?? id,
+            plate: dev ? cleanPlate(dev.plate) : id,
+            status: "disconnected_blue",
+            lat: fb.lat,
+            lng: fb.lng,
+            speed: 0,
+            heading: null,
+            lastConnection: fb.lastConnection || dev?.lastConnection || "",
+            address: null,
+            imei: dev?.imei ?? null,
+            simNumber: dev?.simNumber ?? null,
+            model: dev?.model ?? null,
+            driver: dev?.driver ?? null,
+            zone: null,
+            engineStatus: false,
+            altitude: null,
+            totalDistance: null,
+            stopDurationSec: null,
+            engineHours: null,
+            batteryLevel: batterySensor?.value ?? null,
+            gsmSignal,
+          });
+          added++;
+        }
+        if (added > 0) {
+          logger.info({ added }, "Merged fallback positions into live cache");
+        }
+      });
 
       logger.info({ count: cachedLivePositions.length, updates: updatesById.size }, "Fetched live positions");
       return cachedLivePositions;
@@ -459,14 +512,30 @@ async function refreshSensorCache(): Promise<void> {
     });
     if (resp.data?.data && Array.isArray(resp.data.data)) {
       const allItems = resp.data.data as Record<string, unknown>[];
+      let fallbackCount = 0;
       for (const item of allItems) {
         const id = String(item.id ?? "");
         if (!id) continue;
+
+        // Sensors
         const sensors = Array.isArray(item.sensors) ? (item.sensors as DeviceSensor[]) : [];
         sensorCache.set(id, sensors);
+
+        // Fallback last-known position for offline vehicles
+        // The /objects/items?full=true response includes lat/lng for all devices,
+        // even those not returned by items_json (no recent GPS activity).
+        const rawLat = item.lat ?? item.latitude ?? null;
+        const rawLng = item.lng ?? item.longitude ?? null;
+        const lat = rawLat != null ? parseFloat(String(rawLat)) : NaN;
+        const lng = rawLng != null ? parseFloat(String(rawLng)) : NaN;
+        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+          const timeStr = String(item.time ?? item.last_connection ?? "");
+          fallbackPositions.set(id, { lat, lng, lastConnection: timeStr });
+          fallbackCount++;
+        }
       }
       lastSensorFetch = Date.now();
-      logger.info({ devices: sensorCache.size }, "Sensor cache refreshed");
+      logger.info({ devices: sensorCache.size, withPosition: fallbackCount }, "Sensor cache refreshed");
     }
   } catch (err) {
     logger.error({ err }, "Failed to refresh sensor cache");
