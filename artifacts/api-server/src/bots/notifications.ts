@@ -1,7 +1,7 @@
 import { Telegraf } from "telegraf";
 import { db } from "@workspace/db";
-import { clientsTable, clientVehiclesTable } from "@workspace/db";
-import { isNotNull } from "drizzle-orm";
+import { clientsTable, clientVehiclesTable, alertZonesTable } from "@workspace/db";
+import { isNotNull, eq } from "drizzle-orm";
 import { fetchPlatformEvents, fetchDevices, fetchLivePositions } from "../lib/gps-service";
 import { sendSupportBotAlert } from "./support-bot";
 import { sendBorderAlert } from "./border-alert-bot";
@@ -217,6 +217,9 @@ export function startNotificationService(bot: Telegraf): void {
 
   // Start Colombia border proximity monitor (runs every 5 minutes)
   startBorderMonitor();
+
+  // Start custom geofence monitor (runs every 2 minutes)
+  startGeofenceMonitor();
 }
 
 // ── GSM Signal Monitor ───────────────────────────────────────────────────────
@@ -406,4 +409,97 @@ function startBorderMonitor(): void {
     void checkColombiaBorderAlerts();
     setInterval(() => { void checkColombiaBorderAlerts(); }, BORDER_POLL_INTERVAL_MS);
   }, 3 * 60 * 1000);
+}
+
+// ── Custom Geofence Monitor ───────────────────────────────────────────────────
+//
+// Loads alert zones from DB and checks all live vehicles (any SIM type) against
+// each polygon using ray-casting. Sends a Telegram alert when a vehicle enters.
+
+const GEOFENCE_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const GEOFENCE_COOLDOWN_MS      = 4 * 60 * 60 * 1000; // 4 hours per vehicle+zone
+
+/** "deviceId:zoneId" → timestamp of last alert sent */
+const geofenceCooldown = new Map<string, number>();
+
+/** Ray-casting point-in-polygon. polygon is [[lat,lng],...] */
+function pointInPolygon(lat: number, lng: number, polygon: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [latI, lngI] = polygon[i]!;
+    const [latJ, lngJ] = polygon[j]!;
+    const intersect =
+      ((lngI > lng) !== (lngJ > lng)) &&
+      lat < ((latJ - latI) * (lng - lngI)) / (lngJ - lngI) + latI;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+async function checkGeofenceAlerts(): Promise<void> {
+  try {
+    const [zones, positions] = await Promise.all([
+      db.select().from(alertZonesTable).where(eq(alertZonesTable.active, true)),
+      fetchLivePositions(),
+    ]);
+
+    if (zones.length === 0 || positions.length === 0) return;
+
+    const now = Date.now();
+
+    for (const zone of zones) {
+      let polygon: [number, number][];
+      try {
+        polygon = JSON.parse(zone.points) as [number, number][];
+      } catch { continue; }
+
+      if (polygon.length < 3) continue;
+
+      for (const p of positions) {
+        const cooldownKey = `${p.id}:${zone.id}`;
+        const last = geofenceCooldown.get(cooldownKey) ?? 0;
+        if (now - last < GEOFENCE_COOLDOWN_MS) continue;
+
+        if (!pointInPolygon(p.lat, p.lng, polygon)) continue;
+
+        // Vehicle is inside the zone — send alert
+        geofenceCooldown.set(cooldownKey, now);
+
+        const hora = new Date().toLocaleString("es-VE", { timeZone: "America/Caracas" });
+        const mapsUrl = `https://maps.google.com/?q=${p.lat},${p.lng}`;
+
+        const text =
+          `🚧 *ALERTA DE GEOCERCA — ${zone.name.toUpperCase()}*\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `🚗 *Vehículo:* ${p.name || "—"}\n` +
+          `🔖 *Placa:*    ${p.plate || "—"}\n` +
+          `📱 *SIM:*      ${p.simNumber || "—"}\n` +
+          `🖥️ *Modelo:*   ${p.model || "—"}\n` +
+          `🛰️ *IMEI:*     \`${p.imei || "—"}\`\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `📡 *Estado:* ${p.status}\n` +
+          (p.speed !== null ? `🚀 *Velocidad:* ${p.speed} km/h\n` : "") +
+          `📍 *Posición:* [Ver en Google Maps](${mapsUrl})\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `📌 Zona: *${zone.name}*\n` +
+          `🕒 ${hora}`;
+
+        await sendBorderAlert(text, p.lat, p.lng);
+
+        logger.info(
+          { deviceId: p.id, plate: p.plate, zone: zone.name },
+          "Geofence alert sent",
+        );
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Geofence check failed");
+  }
+}
+
+function startGeofenceMonitor(): void {
+  setTimeout(() => {
+    void checkGeofenceAlerts();
+    setInterval(() => { void checkGeofenceAlerts(); }, GEOFENCE_POLL_INTERVAL_MS);
+  }, 4 * 60 * 1000); // first run after 4 minutes
 }

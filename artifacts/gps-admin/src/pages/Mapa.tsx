@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import 'leaflet/dist/leaflet.css';
 import * as L from 'leaflet';
 import { useGetLivePositions, getGetLivePositionsQueryKey } from '@workspace/api-client-react';
@@ -9,6 +9,16 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 type MapMode = 'streets' | 'satellite';
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface AlertZone {
+  id: number;
+  name: string;
+  points: [number, number][];
+  active: boolean;
+  createdAt: string;
+}
+
+// ── Animation helpers ─────────────────────────────────────────────────────────
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
@@ -23,7 +33,7 @@ interface MarkerState {
   status: string;
 }
 
-// ── Tile layer factories ──────────────────────────────────────────────────
+// ── Tile layer factories ──────────────────────────────────────────────────────
 function buildStreetLayers(): L.TileLayer[] {
   return [
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -36,7 +46,6 @@ function buildStreetLayers(): L.TileLayer[] {
 
 function buildSatelliteLayers(): L.TileLayer[] {
   return [
-    // Google hybrid — satélite + nombres de calles, negocios e íconos
     L.tileLayer(
       'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
       {
@@ -49,18 +58,74 @@ function buildSatelliteLayers(): L.TileLayer[] {
   ];
 }
 
+// ── Zone colors ───────────────────────────────────────────────────────────────
+const ZONE_COLORS = ['#f97316','#3b82f6','#a855f7','#22c55e','#ef4444','#eab308','#06b6d4','#ec4899'];
+function zoneColor(idx: number) { return ZONE_COLORS[idx % ZONE_COLORS.length]!; }
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+const API = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+async function apiGetZones(): Promise<AlertZone[]> {
+  const r = await fetch(`${API}/api/geofences`);
+  if (!r.ok) throw new Error('Failed to load zones');
+  return r.json() as Promise<AlertZone[]>;
+}
+
+async function apiCreateZone(name: string, points: [number, number][]): Promise<AlertZone> {
+  const r = await fetch(`${API}/api/geofences`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, points }),
+  });
+  if (!r.ok) throw new Error('Failed to create zone');
+  return r.json() as Promise<AlertZone>;
+}
+
+async function apiDeleteZone(id: number): Promise<void> {
+  await fetch(`${API}/api/geofences/${id}`, { method: 'DELETE' });
+}
+
+async function apiToggleZone(id: number, active: boolean): Promise<void> {
+  await fetch(`${API}/api/geofences/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active }),
+  });
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export function Mapa() {
   const mapRef         = useRef<L.Map | null>(null);
   const layersRef      = useRef<L.TileLayer[]>([]);
   const statesRef      = useRef<Record<string, MarkerState>>({});
   const animRef        = useRef<number | null>(null);
-  const [time, setTime]      = useState(new Date());
-  const [mode, setMode]      = useState<MapMode>('streets');
-  const [counts, setCounts]  = useState({ moving: 0, ack: 0, idle: 0, off: 0, total: 0, hidden: 0 });
+  const zoneLayersRef  = useRef<Map<number, L.Polygon>>(new Map());
+  const drawLayerRef   = useRef<L.LayerGroup | null>(null);
+  const drawPointsRef  = useRef<[number, number][]>([]);
+
+  const [time, setTime]           = useState(new Date());
+  const [mode, setMode]           = useState<MapMode>('streets');
+  const [counts, setCounts]       = useState({ moving: 0, ack: 0, idle: 0, off: 0, total: 0, hidden: 0 });
+  const [zones, setZones]         = useState<AlertZone[]>([]);
+  const [drawing, setDrawing]     = useState(false);
+  const [drawPts, setDrawPts]     = useState<[number, number][]>([]);
+  const [zonesOpen, setZonesOpen] = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [saveErr, setSaveErr]     = useState('');
 
   const { data: positions } = useGetLivePositions({
     query: { refetchInterval: 1000, queryKey: getGetLivePositionsQueryKey() },
   });
+
+  // Load zones from API
+  const loadZones = useCallback(async () => {
+    try {
+      const data = await apiGetZones();
+      setZones(data);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { void loadZones(); }, [loadZones]);
 
   // Clock
   useEffect(() => {
@@ -77,10 +142,12 @@ export function Mapa() {
       attributionControl: false,
     }).setView([8.5, -66.5], 6);
 
-    // Start in streets mode
     const layers = buildStreetLayers();
     layers.forEach(l => l.addTo(map));
     layersRef.current = layers;
+
+    const drawLayer = L.layerGroup().addTo(map);
+    drawLayerRef.current = drawLayer;
 
     mapRef.current = map;
     return () => {
@@ -90,19 +157,118 @@ export function Mapa() {
     };
   }, []);
 
-  // Switch layers when mode changes
+  // Switch tile layers
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
-    // Remove current layers
     layersRef.current.forEach(l => map.removeLayer(l));
-
-    // Add new layers
     const newLayers = mode === 'streets' ? buildStreetLayers() : buildSatelliteLayers();
     newLayers.forEach(l => l.addTo(map));
     layersRef.current = newLayers;
   }, [mode]);
+
+  // Render zone polygons on the map whenever zones list changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Remove all old zone layers
+    zoneLayersRef.current.forEach(poly => map.removeLayer(poly));
+    zoneLayersRef.current.clear();
+
+    zones.forEach((zone, idx) => {
+      if (!zone.active) return;
+      const color = zoneColor(idx);
+      const poly = L.polygon(zone.points, {
+        color,
+        fillColor: color,
+        fillOpacity: 0.15,
+        weight: 2.5,
+        dashArray: '6 4',
+      });
+
+      poly.bindPopup(`
+        <div style="font-family:'Inter',sans-serif;min-width:180px">
+          <div style="font-weight:900;font-size:14px;margin-bottom:8px">📌 ${zone.name}</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:10px">${zone.points.length} vértices</div>
+          <button onclick="window.__deleteZone(${zone.id})"
+            style="width:100%;padding:6px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer">
+            🗑️ Eliminar zona
+          </button>
+        </div>
+      `, { maxWidth: 220 });
+
+      poly.addTo(map);
+      zoneLayersRef.current.set(zone.id, poly);
+    });
+  }, [zones]);
+
+  // Global delete handler (called from popup)
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>)['__deleteZone'] = async (id: number) => {
+      await apiDeleteZone(id);
+      await loadZones();
+    };
+    return () => { delete (window as unknown as Record<string, unknown>)['__deleteZone']; };
+  }, [loadZones]);
+
+  // Drawing mode: attach/detach map click handler
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (drawing) {
+      map.getContainer().style.cursor = 'crosshair';
+    } else {
+      map.getContainer().style.cursor = '';
+    }
+
+    const handleClick = (e: L.LeafletMouseEvent) => {
+      if (!drawing) return;
+      const pt: [number, number] = [e.latlng.lat, e.latlng.lng];
+      drawPointsRef.current = [...drawPointsRef.current, pt];
+      setDrawPts([...drawPointsRef.current]);
+    };
+
+    if (drawing) {
+      map.on('click', handleClick);
+    }
+    return () => { map.off('click', handleClick); };
+  }, [drawing]);
+
+  // Render draw preview
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = drawLayerRef.current;
+    if (!map || !layer) return;
+    layer.clearLayers();
+
+    if (drawPts.length === 0) return;
+
+    // Draw vertex dots
+    drawPts.forEach((pt, i) => {
+      L.circleMarker(pt, {
+        radius: i === 0 ? 7 : 5,
+        color: '#f97316',
+        fillColor: i === 0 ? '#fff' : '#f97316',
+        fillOpacity: 1,
+        weight: 2.5,
+      }).addTo(layer);
+    });
+
+    // Draw dashed preview polygon if ≥3 points
+    if (drawPts.length >= 3) {
+      L.polygon(drawPts, {
+        color: '#f97316',
+        fillColor: '#f97316',
+        fillOpacity: 0.12,
+        weight: 2,
+        dashArray: '8 5',
+      }).addTo(layer);
+    } else if (drawPts.length === 2) {
+      L.polyline(drawPts, { color: '#f97316', weight: 2, dashArray: '8 5' }).addTo(layer);
+    }
+  }, [drawPts]);
 
   // Animation loop
   useEffect(() => {
@@ -132,7 +298,7 @@ export function Mapa() {
     };
   }, []);
 
-  // Update markers
+  // Update vehicle markers
   useEffect(() => {
     if (!mapRef.current || !positions) return;
     const map = mapRef.current;
@@ -273,13 +439,67 @@ export function Mapa() {
     setCounts({ moving, ack, idle, off, total: activeIds.size, hidden });
   }, [positions]);
 
+  // ── Drawing actions ───────────────────────────────────────────────────────
+
+  const startDrawing = () => {
+    drawPointsRef.current = [];
+    setDrawPts([]);
+    setDrawing(true);
+    setZonesOpen(false);
+    setSaveErr('');
+  };
+
+  const cancelDrawing = () => {
+    setDrawing(false);
+    drawPointsRef.current = [];
+    setDrawPts([]);
+    drawLayerRef.current?.clearLayers();
+  };
+
+  const undoLastPoint = () => {
+    const pts = drawPointsRef.current.slice(0, -1);
+    drawPointsRef.current = pts;
+    setDrawPts([...pts]);
+  };
+
+  const saveZone = async () => {
+    const pts = drawPointsRef.current;
+    if (pts.length < 3) { setSaveErr('Necesitas al menos 3 puntos para crear una zona.'); return; }
+    const name = window.prompt('Nombre de la zona de alerta (ej: Coloncito, Frontera Táchira):');
+    if (!name?.trim()) return;
+    setSaving(true);
+    setSaveErr('');
+    try {
+      await apiCreateZone(name.trim(), pts);
+      await loadZones();
+      cancelDrawing();
+      setZonesOpen(true);
+    } catch {
+      setSaveErr('Error al guardar la zona. Intenta de nuevo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleZone = async (id: number, active: boolean) => {
+    await apiToggleZone(id, active);
+    await loadZones();
+  };
+
+  const deleteZone = async (id: number) => {
+    if (!window.confirm('¿Eliminar esta zona de alerta?')) return;
+    await apiDeleteZone(id);
+    await loadZones();
+  };
+
   const isSat = mode === 'satellite';
+  const activeZones = zones.filter(z => z.active);
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
       <div id="live-map" className="w-full h-full z-0" />
 
-      {/* ── Centro de Control — barra completa ── */}
+      {/* ── Centro de Control ── */}
       <div className="absolute top-3 left-3 right-3 z-10 pointer-events-none">
         <div
           className="pointer-events-auto rounded-2xl overflow-hidden shadow-2xl"
@@ -289,12 +509,9 @@ export function Mapa() {
             backdropFilter: 'blur(16px)',
           }}
         >
-          {/* Gradient top accent line */}
           <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #E8720C 0%, #1E6FBF 50%, #5B9B2A 100%)' }} />
 
           <div className="flex items-stretch">
-
-            {/* ── Brand section ── */}
             <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ borderRight: '1px solid rgba(255,255,255,0.07)' }}>
               <img src={logoUrl} alt="GPS Sistema C.A." className="h-12 w-12 object-contain drop-shadow-lg" />
               <div>
@@ -304,7 +521,6 @@ export function Mapa() {
               </div>
             </div>
 
-            {/* ── Clock ── */}
             <div className="flex flex-col items-center justify-center px-5 shrink-0" style={{ borderRight: '1px solid rgba(255,255,255,0.07)' }}>
               <div className="text-[8px] font-bold text-white/35 uppercase tracking-widest mb-0.5">Hora Local</div>
               <div className="text-xl font-mono font-black tabular-nums" style={{ color: '#38bdf8', textShadow: '0 0 16px rgba(56,189,248,0.5)' }}>
@@ -315,7 +531,6 @@ export function Mapa() {
               </div>
             </div>
 
-            {/* ── Stats ── */}
             <div className="flex flex-1 divide-x" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
               {([
                 { label: 'En Mapa',         value: counts.total,  color: '#e2e8f0', glow: 'rgba(226,232,240,0.3)', pulse: false },
@@ -330,34 +545,22 @@ export function Mapa() {
                   className="flex-1 flex flex-col items-center justify-center py-3 px-2 relative"
                   style={{ borderColor: 'rgba(255,255,255,0.06)', minWidth: 0 }}
                 >
-                  {/* Subtle glow bg */}
-                  <div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{ background: `radial-gradient(ellipse at 50% 100%, ${s.glow.replace('0.5','0.06')} 0%, transparent 70%)` }}
-                  />
-                  {/* Pulse dot */}
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{ background: `radial-gradient(ellipse at 50% 100%, ${s.glow.replace('0.5','0.06')} 0%, transparent 70%)` }} />
                   {s.pulse && (
-                    <span
-                      className="absolute top-2 right-2 w-2 h-2 rounded-full"
-                      style={{ background: s.color, boxShadow: `0 0 8px ${s.color}`, animation: 'pulse 1.4s infinite' }}
-                    />
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full"
+                      style={{ background: s.color, boxShadow: `0 0 8px ${s.color}`, animation: 'pulse 1.4s infinite' }} />
                   )}
-                  {/* Number */}
-                  <div
-                    className="text-3xl font-black tabular-nums leading-none relative z-10"
-                    style={{ color: s.color, textShadow: `0 0 20px ${s.glow}, 0 0 40px ${s.glow.replace('0.5','0.25')}` }}
-                  >
+                  <div className="text-3xl font-black tabular-nums leading-none relative z-10"
+                    style={{ color: s.color, textShadow: `0 0 20px ${s.glow}, 0 0 40px ${s.glow.replace('0.5','0.25')}` }}>
                     {s.value}
                   </div>
-                  {/* Label */}
-                  <div className="text-[8px] font-bold uppercase tracking-[0.15em] mt-1 text-center leading-tight relative z-10" style={{ color: `${s.color}88` }}>
+                  <div className="text-[8px] font-bold uppercase tracking-[0.15em] mt-1 text-center leading-tight relative z-10"
+                    style={{ color: `${s.color}88` }}>
                     {s.label}
                   </div>
-                  {/* Bottom color line */}
-                  <div
-                    className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all"
-                    style={{ width: '60%', background: s.color, opacity: 0.5, boxShadow: `0 0 8px ${s.color}` }}
-                  />
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all"
+                    style={{ width: '60%', background: s.color, opacity: 0.5, boxShadow: `0 0 8px ${s.color}` }} />
                 </div>
               ))}
             </div>
@@ -365,41 +568,167 @@ export function Mapa() {
         </div>
       </div>
 
-      {/* ── Map mode toggle ── */}
-      <div className="absolute top-3 right-3 z-20 pointer-events-auto">
+      {/* ── Top-right controls ── */}
+      <div className="absolute top-3 right-3 z-20 pointer-events-auto flex flex-col gap-2 items-end">
+        {/* Map mode toggle */}
         <div className="bg-[#05111f]/90 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl p-1 flex gap-1">
-          <button
-            onClick={() => setMode('streets')}
-            className="px-3 py-2 rounded-lg text-xs font-bold transition-all"
-            style={!isSat ? {
-              background: 'linear-gradient(135deg,#0A1A3E,#0D2255)',
-              color: '#60a5fa',
-              border: '1px solid rgba(96,165,250,0.4)',
-              boxShadow: '0 0 12px rgba(96,165,250,0.2)',
-            } : {
-              color: 'rgba(255,255,255,0.4)',
-              border: '1px solid transparent',
-            }}
-          >
+          <button onClick={() => setMode('streets')} className="px-3 py-2 rounded-lg text-xs font-bold transition-all"
+            style={!isSat ? { background:'linear-gradient(135deg,#0A1A3E,#0D2255)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.4)', boxShadow:'0 0 12px rgba(96,165,250,0.2)' }
+                          : { color:'rgba(255,255,255,0.4)', border:'1px solid transparent' }}>
             🗺️ Calles
           </button>
-          <button
-            onClick={() => setMode('satellite')}
-            className="px-3 py-2 rounded-lg text-xs font-bold transition-all"
-            style={isSat ? {
-              background: 'linear-gradient(135deg,#0A1A3E,#0D2255)',
-              color: '#22c55e',
-              border: '1px solid rgba(34,197,94,0.4)',
-              boxShadow: '0 0 12px rgba(34,197,94,0.2)',
-            } : {
-              color: 'rgba(255,255,255,0.4)',
-              border: '1px solid transparent',
-            }}
-          >
+          <button onClick={() => setMode('satellite')} className="px-3 py-2 rounded-lg text-xs font-bold transition-all"
+            style={isSat  ? { background:'linear-gradient(135deg,#0A1A3E,#0D2255)', color:'#22c55e', border:'1px solid rgba(34,197,94,0.4)', boxShadow:'0 0 12px rgba(34,197,94,0.2)' }
+                          : { color:'rgba(255,255,255,0.4)', border:'1px solid transparent' }}>
             🛰️ Satélite
           </button>
         </div>
+
+        {/* Zones button */}
+        {!drawing && (
+          <button
+            onClick={() => setZonesOpen(o => !o)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-2xl transition-all"
+            style={{
+              background: zonesOpen
+                ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
+                : 'linear-gradient(135deg,#1e293b,#0f172a)',
+              color: zonesOpen ? '#fff' : 'rgba(255,255,255,0.7)',
+              border: zonesOpen ? '1px solid rgba(167,139,250,0.5)' : '1px solid rgba(255,255,255,0.1)',
+              boxShadow: zonesOpen ? '0 0 16px rgba(139,92,246,0.4)' : undefined,
+            }}
+          >
+            🚧 Geocercas
+            {activeZones.length > 0 && (
+              <span className="ml-1 bg-orange-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                {activeZones.length}
+              </span>
+            )}
+          </button>
+        )}
       </div>
+
+      {/* ── Zones panel ── */}
+      {zonesOpen && !drawing && (
+        <div className="absolute top-36 right-3 z-20 w-72 pointer-events-auto"
+          style={{
+            background: 'rgba(5,10,28,0.97)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 16,
+            backdropFilter: 'blur(16px)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+          }}>
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <span className="text-white font-black text-sm">🚧 Zonas de Alerta</span>
+            <button onClick={() => setZonesOpen(false)} className="text-white/40 hover:text-white text-lg leading-none">×</button>
+          </div>
+
+          <div className="p-3">
+            <button
+              onClick={startDrawing}
+              className="w-full py-2.5 rounded-xl text-sm font-black mb-3 transition-all"
+              style={{
+                background: 'linear-gradient(135deg,#f97316,#ea580c)',
+                color: '#fff',
+                boxShadow: '0 4px 16px rgba(249,115,22,0.4)',
+              }}
+            >
+              ✏️ Dibujar Nueva Zona
+            </button>
+
+            {zones.length === 0 ? (
+              <div className="text-center py-6 text-white/30 text-xs">
+                <div className="text-3xl mb-2">🗺️</div>
+                No hay zonas configuradas.<br />
+                Dibuja la primera zona en el mapa.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
+                {zones.map((zone, idx) => (
+                  <div key={zone.id} className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ background: zoneColor(idx), boxShadow: `0 0 6px ${zoneColor(idx)}` }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white text-xs font-bold truncate">{zone.name}</div>
+                      <div className="text-white/30 text-[10px]">{zone.points.length} vértices</div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => toggleZone(zone.id, !zone.active)}
+                        className="text-[10px] px-2 py-1 rounded-lg font-bold transition-all"
+                        style={{
+                          background: zone.active ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
+                          color: zone.active ? '#22c55e' : 'rgba(255,255,255,0.3)',
+                          border: `1px solid ${zone.active ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                        }}
+                      >
+                        {zone.active ? 'ON' : 'OFF'}
+                      </button>
+                      <button onClick={() => deleteZone(zone.id)}
+                        className="text-[11px] px-2 py-1 rounded-lg font-bold transition-all hover:opacity-80"
+                        style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Drawing toolbar ── */}
+      {drawing && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+          <div className="flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl"
+            style={{
+              background: 'rgba(5,10,28,0.97)',
+              border: '1px solid rgba(249,115,22,0.4)',
+              backdropFilter: 'blur(16px)',
+              boxShadow: '0 8px 32px rgba(249,115,22,0.25)',
+            }}>
+            <div className="flex items-center gap-2 text-orange-400 font-black text-sm">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-400 animate-pulse" />
+              Modo dibujo
+            </div>
+            <div className="text-white/30 text-xs">
+              {drawPts.length === 0
+                ? 'Haz clic en el mapa para agregar puntos'
+                : drawPts.length < 3
+                ? `${drawPts.length} punto${drawPts.length > 1 ? 's' : ''} — necesitas al menos 3`
+                : `${drawPts.length} puntos`}
+            </div>
+            {drawPts.length > 0 && (
+              <button onClick={undoLastPoint}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                ↩ Deshacer
+              </button>
+            )}
+            {saveErr && <span className="text-red-400 text-xs">{saveErr}</span>}
+            <button onClick={cancelDrawing}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold"
+              style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>
+              Cancelar
+            </button>
+            <button onClick={() => { void saveZone(); }}
+              disabled={drawPts.length < 3 || saving}
+              className="px-4 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40"
+              style={{
+                background: drawPts.length >= 3 && !saving
+                  ? 'linear-gradient(135deg,#22c55e,#16a34a)'
+                  : 'rgba(255,255,255,0.08)',
+                color: drawPts.length >= 3 && !saving ? '#fff' : 'rgba(255,255,255,0.3)',
+                border: 'none',
+                boxShadow: drawPts.length >= 3 ? '0 4px 12px rgba(34,197,94,0.3)' : undefined,
+              }}>
+              {saving ? 'Guardando…' : '✓ Guardar Zona'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Legend ── */}
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
@@ -420,7 +749,7 @@ export function Mapa() {
         </div>
       </div>
 
-      {/* ── Attribution badge ── */}
+      {/* ── Attribution ── */}
       <div className="absolute bottom-5 right-3 z-10">
         <div className="bg-[#05111f]/90 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white/40 uppercase tracking-wider">
           {isSat ? '🛰 Satélite · Esri · 1s' : '🗺 OpenStreetMap · 1s'}
