@@ -486,6 +486,8 @@ async function checkGeofenceAlerts(): Promise<void> {
         };
         const estado = estadoLabel[p.status] ?? p.status;
 
+        const isTeltonika = p.simNumber?.toUpperCase().startsWith("TELTONIKA ");
+
         const text =
           `🚧 *ALERTA DE GEOCERCA — ${zone.name.toUpperCase()}*\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
@@ -500,6 +502,9 @@ async function checkGeofenceAlerts(): Promise<void> {
           `📍 *Posición:* [Ver en Google Maps](${mapsUrl})\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
           `📌 Zona: *${zone.name}*\n` +
+          (isTeltonika
+            ? `🔄 *Revisar SIM* — posible cambio de cobertura\n`
+            : `⚠️ Vehículo cerca de límites fronterizos\n`) +
           `🕒 ${hora}`;
 
         await sendBorderAlert(text, p.lat, p.lng);
