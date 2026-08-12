@@ -107,6 +107,7 @@ export function Mapa() {
   const [mode, setMode]           = useState<MapMode>('streets');
   const [counts, setCounts]       = useState({ moving: 0, ack: 0, idle: 0, off: 0, total: 0, hidden: 0 });
   const [zones, setZones]         = useState<AlertZone[]>([]);
+  const [hiddenZones, setHiddenZones] = useState<Set<number>>(new Set());
   const [drawing, setDrawing]     = useState(false);
   const [drawPts, setDrawPts]     = useState<[number, number][]>([]);
   const [zonesOpen, setZonesOpen] = useState(false);
@@ -177,7 +178,7 @@ export function Mapa() {
     zoneLayersRef.current.clear();
 
     zones.forEach((zone, idx) => {
-      if (!zone.active) return;
+      if (hiddenZones.has(zone.id)) return;
       const color = zoneColor(idx);
       const poly = L.polygon(zone.points, {
         color,
@@ -201,7 +202,7 @@ export function Mapa() {
       poly.addTo(map);
       zoneLayersRef.current.set(zone.id, poly);
     });
-  }, [zones]);
+  }, [zones, hiddenZones]);
 
   // Global delete handler (called from popup)
   useEffect(() => {
@@ -656,6 +657,24 @@ export function Mapa() {
                       <div className="text-white/30 text-[10px]">{zone.points.length} vértices</div>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {/* Eye toggle — only hides polygon on map, alerts still fire */}
+                      <button
+                        onClick={() => setHiddenZones(prev => {
+                          const next = new Set(prev);
+                          next.has(zone.id) ? next.delete(zone.id) : next.add(zone.id);
+                          return next;
+                        })}
+                        className="text-[13px] px-2 py-1 rounded-lg transition-all"
+                        title={hiddenZones.has(zone.id) ? 'Mostrar en mapa' : 'Ocultar del mapa'}
+                        style={{
+                          background: hiddenZones.has(zone.id) ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.15)',
+                          color: hiddenZones.has(zone.id) ? 'rgba(255,255,255,0.25)' : '#818cf8',
+                          border: `1px solid ${hiddenZones.has(zone.id) ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.3)'}`,
+                        }}
+                      >
+                        {hiddenZones.has(zone.id) ? '🙈' : '👁️'}
+                      </button>
+                      {/* ON/OFF — controls Telegram alerts */}
                       <button
                         onClick={() => toggleZone(zone.id, !zone.active)}
                         className="text-[10px] px-2 py-1 rounded-lg font-bold transition-all"
