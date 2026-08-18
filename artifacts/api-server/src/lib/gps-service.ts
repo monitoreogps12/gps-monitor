@@ -3,9 +3,9 @@ import * as cheerio from "cheerio";
 import { logger } from "./logger";
 import deviceLastSeenRaw from "../data/device-last-seen.json";
 
-const GPS_BASE_URL = "https://rastreoplus247.com";
-const GPS_EMAIL = "olintoflores1@gmail.com";
-const GPS_PASSWORD = "Olinto1234";
+const GPS_BASE_URL = process.env.GPS_URL ?? "https://rastreoplus247.com";
+const GPS_EMAIL    = process.env.GPS_EMAIL ?? "olintoflores1@gmail.com";
+const GPS_PASSWORD = process.env.GPS_PASSWORD ?? "Olinto1234";
 
 export type DeviceStatus =
   | "moving"
